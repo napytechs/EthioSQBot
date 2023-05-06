@@ -1,7 +1,7 @@
 from filters import parse_time
 import unittest
 import time
-from model import User
+from utils.model import User
 from app import db, create_app
 
 
