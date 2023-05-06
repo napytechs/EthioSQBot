@@ -1,4 +1,4 @@
-from filters import parse_time
+from utils.filters import parse_time
 import unittest
 import time
 from utils.model import User
