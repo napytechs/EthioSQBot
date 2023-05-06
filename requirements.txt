@@ -1,0 +1,6 @@
+psycopg2
+pytelegrambotapi
+flask
+flask-sqlalchemy
+flask-moment
+timeago
