@@ -3,7 +3,7 @@ from model import User
 
 
 class LanguageFilter(SimpleCustomFilter):
-    key = 'lang_code'
+    key = 'language'
 
     @classmethod
     def check(self, message):
