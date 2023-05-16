@@ -6,21 +6,19 @@ import re
 from typing import Union
 from telebot.apihelper import ApiTelegramException
 from telebot.custom_filters import StateFilter, ChatFilter
-import utils.filters as filters
-from utils.filters import Deeplink, LanguageFilter
+import filters
+from filters import Deeplink, LanguageFilter
 from text import Text
-from button.keyboard import *
+from keyboard import *
 import logging
 from app import create_app, db
-from utils.model import User, Role, Answer, Question, Permission, QuestionSetting
+from model import User, Role, Answer, Question, Permission, QuestionSetting
 
 apihelper.ENABLE_MIDDLEWARE = True
+apihelper.proxy = {'https':'socks5://202.149.89.69:7999'}
 app = create_app(os.getenv("CONFIG"))
 TOKEN = app.config['TOKEN']
 bot = TeleBot(TOKEN, parse_mode='html')
-
-with app.app_context() as context:
-    context.push()
 
 
 @app.shell_context_processor
@@ -28,7 +26,7 @@ def on_shell():
     return dict(db=db, User=User, Question=Question, Answer=Answer, Permission=Permission, Role=Role)
 
 
-DEEPLINK = 'http://t.me/{0}?start='.format(bot.get_me().username)
+#DEEPLINK = 'http://t.me/{0}?start='.format(bot.get_me().username)
 WEBHOOK_URL = app.config['WEBHOOK_URL']
 MAINTAIN = False
 PENDING = False
@@ -90,9 +88,8 @@ def start_message(message: types.Message):
     user_id = message.chat.id
     _user = User.query.filter_by(id=user_id).first()
     if _user is None:
-        max_id = User.query.count()
         new_user = User(id=user_id)
-        new_user.generate_link(max_id)
+        new_user.generate_link()
         db.session.add(new_user)
         db.session.commit()
         return bot.send_message(user_id, "<i>Select your langauge / ቋንቋ ይምረጡ</i>", reply_markup=lang_button(True))
@@ -322,7 +319,7 @@ def am_button(message: types.Message):
         bot.send_message(user_id, "<b>✔ የቦቱን መስራች ያግኙ\n\n👨‍💻 @Natiprado</b>")
 
 
-@bot.message_handler(func=lambda message: message.text in ["📝 መልዕክት ላክ", "❔ ጥያቄዎች", "📊 ቆጠራ"], chat_types=['private'])
+@bot.message_handler(func=lambda message: message.text in ["📝 መልዕክት ላክ", "📊 ቆጠራ"], chat_types=['private'])
 def admin_buttons(message: types.Message):
     user_id = message.chat.id
     user = User.query.filter_by(id=user_id).first()
@@ -336,25 +333,6 @@ def admin_buttons(message: types.Message):
                              reply_markup=cancel(user.language))
             bot.set_state(user_id, 'message')
             markups.clear()
-
-    elif message.text == "❔ ጥያቄዎች":
-        if user_id == OWNER_ID or user.can(Permission.APPROVE):
-            questions = Question.query.filter_by(status='pending').all()
-            showed = False
-            if not PENDING:
-                for question in questions:
-                    btn = InlineKeyboardMarkup()
-                    btn.add(InlineKeyboardButton("✔️ አጽድቅ", callback_data=f"approve:{question.id}"),
-                            InlineKeyboardButton("✖️ አታጽድቅ", callback_data=f"decline:{question.id}"))
-                    asker = question.asker
-                    text = f"#{question.subject}\n\n<b>{question.body}</b>\n\nበ {mention(asker.name)} ይተጠየቅ"
-                    bot.send_message(user_id, text, reply_markup=btn)
-
-                    showed = True
-                if not showed:
-                    bot.send_message(user_id, "ምንም የተጠየቀ ጥያቀ የለም።")
-            else:
-                bot.send_message(user_id, "ምንም የተጠየቀ ጥያቀ የለም።")
 
     else:
         if user.can(Permission.SEE):
@@ -470,83 +448,6 @@ def send_menu(user_id):
         bot.send_message(user_id, "<i>Select your langauge / ቋንቋ ይምረጡ</i>", reply_markup=lang_button())
 
 
-@bot.callback_query_handler(lambda call: re.search(r"^(approve|decline)", call.data))
-def approve_questions(call: types.CallbackQuery):
-    global PENDING
-    if PENDING:
-        return bot.answer_callback_query(call.id, 'ስርዓቱ አሁን በመጨናንቅ ላይ ሰላለ ፤ እባኮን ትንሽ ቆይተዉ እንደገና ይሞክሩ።')
-    PENDING = True
-    user_id = call.message.chat.id
-    question_id = call.data.split(":")[-1]
-    msg_id = call.message.message_id
-    question = Question.query.filter_by(id=question_id).first()
-    content = call.data.split(":")[0]
-    user = User.query.filter_by(id=user_id).first()
-
-    if not user.can(Permission.APPROVE):
-        bot.edit_message_reply_markup(user_id, msg_id)
-        return bot.answer_callback_query(call.id, "ይቅርታ፤ ይህን ጥያቄ ማጽደቅም ሆነ አለማጽደቅም አይችሉም።", show_alert=True)
-
-    if question.status != "pending":
-        bot.edit_message_reply_markup(user_id, msg_id)
-        return bot.answer_callback_query(call.id, "ይህ ጥያቄ መጽደቅም ሆነ አለማጽደቅም አይችልም", show_alert=True)
-    else:
-        if content == "decline":
-            bot.answer_callback_query(call.id)
-            bot.send_message(user_id, "እባኮን ይህን ጣያቄ የማያጸድቁበትን ምክኒያት ይጻፉ።",
-                             reply_markup=cancel(user.language))
-            bot.set_state(user_id, "decline")
-            PENDING = True
-            with bot.retrieve_data(user_id) as data:
-                data["question_id"] = question.id
-        else:
-            try:
-                nq = Question.query.filter_by(id=question_id).first()
-                if nq.status != 'pending':
-                    bot.answer_callback_query(call.id, "ይህ ጥያቄ ማጽደቅም አይችልም።")
-                    return bot.edit_message_reply_markup(user_id, msg_id)
-
-                btn = InlineKeyboardMarkup([[InlineKeyboardButton("መልስ", DEEPLINK + question.hash_link),
-                                             InlineKeyboardButton(f"ዝርዝር({question.answers.count()})",
-                                                                  DEEPLINK + question.browse_linkk)]])
-                msg = bot.copy_message(CHANNEL_ID, user_id, msg_id, reply_markup=btn)
-                question.status = 'approved'
-                question.message_id = msg.message_id
-                db.session.add(question)
-                db.session.commit()
-                bot.answer_callback_query(call.id, "ጥያቀው ጸድቋል!")
-                bot.edit_message_reply_markup(user_id, msg_id)
-                try:
-                    btn = InlineKeyboardMarkup(
-                        [[InlineKeyboardButton("አሳየኝ", f"t.me/{bot.get_chat(CHANNEL_ID).username}/{msg.message_id}")]])
-                    bot.send_message(question.asker, "ጥያቀዎት ጸድቋል!", reply_markup=btn)
-                except:
-                    pass
-            except:
-                bot.answer_callback_query(call.id, "ቦቱ ማሰራጩዉ ላይ አስተዳዳሪ አይደለም!")
-            PENDING = False
-
-
-@bot.message_handler(state="decline")
-def decline_question(message: types.Message):
-    global PENDING
-    user_id = message.chat.id
-    with bot.retrieve_data(user_id) as data:
-        question_id = data["question_id"]
-    question = Question.query.filter_by(id=question_id).first()
-    question.status = 'declined'
-    db.session.add(question)
-    db.session.commit()
-    try:
-        bot.send_message(question.asker.id, f"ጥያቀዎት አልጸደቀም\n\n<b>ምክኒያት:</b> {message.text}")
-    except ApiTelegramException:
-        pass
-    bot.send_message(user_id, "!")
-    send_menu(user_id)
-    bot.delete_state(user_id)
-    PENDING = False
-
-
 @bot.callback_query_handler(func=lambda call: call.startswith('pagin'))
 def on_pagination(call: types.CallbackQuery):
     bot.answer_callback_query(call.id)
@@ -558,7 +459,7 @@ def on_pagination(call: types.CallbackQuery):
     count = page * 10 - 10
     for user in users.limit(10):
         count += 1
-        text += "<code>#%d.</code> %s\n\n" % (count, mention(user))
+        text += "<i>#%d.</i> %s\n\n" % (count, mention(user))
     text += "\nየታየ - %d ፤ አጠቃላይ - %d" % (count, User.query.count())
     bot.edit_message_text(text, inline_message_id=call.inline_message_id, reply_markup=btn)
 
@@ -599,7 +500,7 @@ def get_subject(message: types.Message):
         with bot.retrieve_data(user_id) as data:
             body = data['question']
 
-        question = Question(body=body, subject=subject, setting=QuestionSetting(reply=False), asker=user)
+        question = Question(body=body, subject=subject, asker_id=user.id)
         question.generate_link()
         question.generate_browse_link()
         db.session.add(question)
@@ -624,6 +525,7 @@ def __edit_question(call: types.CallbackQuery):
         return bot.send_message(user_id, "ይህ ጥያቄ የለም።")
 
     elif question.status != 'previewing':
+        bot.delete_message(user_id, msg_id)
         return bot.answer_callback_query(call.id, "ይህ ጥያቄ አርትዕ መደረግ አይችልም", show_alert=True)
 
     if content == 'question':
@@ -637,7 +539,7 @@ def __edit_question(call: types.CallbackQuery):
         state = 'edit_subject'
 
     elif content == 'enable':
-        bot.answer_callback_query(call.id, "መመልስ ይቻላል።\n\nሁሉም ሰው ለርሶ ጥያቄ ለተመለሱት መልሶች ምላሽ መስጥት ይችላል።", show_alert=True)
+        bot.answer_callback_query(call.id, "መመለስ ይቻላል።\n\nሁሉም ሰው ለርሶ ጥያቄ ለተመለሱት መልሶች ምላሽ መስጥት ይችላል።", show_alert=True)
         question.setting = QuestionSetting(reply=True)
         db.session.add(question)
         db.session.commit()
@@ -648,7 +550,7 @@ def __edit_question(call: types.CallbackQuery):
         question.setting = QuestionSetting(reply=False)
         db.session.add(question)
         db.session.commit()
-        bot.answer_callback_query(call.id, "መመልስ አይቻልም\n\nከርሶ ውጪ፤ ማንም ሰው ለርሶ ጥያቄ ለተመለሱት መልሶች ምላሽ መስጥት አልም።",
+        bot.answer_callback_query(call.id, "መመለስ አይቻልም\n\nከርሶ ውጪ፤ ማንም ሰው ለርሶ ጥያቄ ለተመለሱት መልሶች ምላሽ መስጥት አልም።",
                                   show_alert=True)
         bot.edit_message_reply_markup(user_id, msg_id, reply_markup=on_question_button(question_id, False))
         return
@@ -661,7 +563,6 @@ def __edit_question(call: types.CallbackQuery):
 @bot.message_handler(state='edit_question', content_types=util.content_type_media)
 def edit_question(message: types.Message):
     user_id = message.chat.id
-    user = User.query.filter_by(id=user_id).first()
     with bot.retrieve_data(user_id) as data:
         question_id = data['question_id']
 
@@ -680,13 +581,12 @@ def edit_question(message: types.Message):
 @bot.message_handler(state='edit_subject')
 def edit_subject(message: types.Message):
     user_id = message.chat.id
-    user = User.query.filter_by(id=user_id).first()
     with bot.retrieve_data(user_id) as data:
         question_id = data['question_id']
 
     text = message.text
     if text not in subject_text:
-        bot.send_message(user_id, "<code>የጥያቄዎን ትምህርት አይነት ይምረጡ..</code>", reply_markup=subject_button())
+        bot.send_message(user_id, "<code>የጥያቄዎን ትምህርት አይነት ይምረጡ....</code>", reply_markup=subject_button())
 
     else:
         subject = text[2:].strip().replace(" ", "_").lower()
@@ -707,7 +607,8 @@ def send_question(user_id, question_id):
     user = User.query.filter_by(id=user_id).first()
     text = f"#{new_question.subject}\n\n<b>{new_question.body}</b>\n\nበ {mention(user)} የተጠይቀ\n\n"
     bot.send_message(user_id, text, reply_markup=on_question_button(question_id, new_question.reply))
-    bot.send_message(user_id, "ጥያቀዎትን ተመልክተዉ እንደ ጨርሱ፤ ላክ የሚለዉን አዝራር ይጫኑ", reply_markup=main_button(user))
+    bot.send_message(user_id, "ጥያቄዎትን ተመልክተዉ እንደጨርሱ ለጥፍ የሚለዉን አዝራር ይጫኑ፤ ይህም በቀጥታ ማሰራጪያችን ላይ እንዲለጠፍ ይሆናል።",
+                     reply_markup=main_button(user))
 
 
 @bot.callback_query_handler(lambda call: re.search(r'cancel_question', call.data))
@@ -716,42 +617,70 @@ def cancel_question(call: types.CallbackQuery):
     message_id = call.message.message_id
     question_id = int(call.data.split(":")[-1])
     question = Question.query.filter_by(id=question_id).first()
-    user = User.query.filter_by(id=question_id).first()
 
-    if question.status in ['pending', 'previewing']:
+    if question.status == 'previewing':
         question.status = 'cancelled'
         db.session.add(question)
         db.session.commit()
         bot.answer_callback_query(call.id, "ተሰርዟል...")
-        btn = InlineKeyboardMarkup([[InlineKeyboardButton("☑ እንደገና ላክ", callback_data=f'submit:{question_id}')]])
-        text = f"#{question.subject}\n\n<b>{question.question['text']}</b>\n\nበ {mention(user)} የተጠየቀ\n\n"
-        bot.edit_message_text(text, user_id, message_id, reply_markup=btn)
+        btn = InlineKeyboardMarkup([[InlineKeyboardButton("☑ እንደገና ለጥፍ", callback_data=f'post:{question_id}')]])
+        bot.edit_message_reply_markup(inline_message_id=call.inline_message_id, reply_markup=btn)
     else:
         bot.edit_message_reply_markup(user_id, message_id)
         bot.answer_callback_query(call.id, "ይቅርታ፤ ይህ ጥያቄ መሰረዝ አይችልም።", show_alert=True)
 
 
-@bot.callback_query_handler(lambda call: call.data.startswith('submit'))
-def submit_question(call: types.CallbackQuery):
+@bot.callback_query_handler(lambda call: call.data.startswith('post'))
+def post_question(call: types.CallbackQuery):
     user_id = call.message.chat.id
     question_id = int(call.data.split(":")[-1])
     question = db.question(question_id)
     msg_id = call.message.message_id
-    user = User.query.filter_by(id=user_id).first()
+    btns = InlineKeyboardMarkup(row_width=2)
+    btns.add(
+        InlineKeyboardButton("ምላሽ", url=DEEPLINK + question.hash_link),
+        InlineKeyboardButton("ዝርዝር(%d)" % question.answers.count(), url=DEEPLINK + question.browse_link),
+        InlineKeyboardButton("⚠️ ይጠቁሙ", callback_data='-report:%d' % question.id)
+    )
 
-    if question.status in ['previewing', 'canceled']:
-        bot.answer_callback_query(call.id, "ጥያቄዎት ተልኳል።")
-        question.status = 'submited'
-        db.session.add(question)
-        db.session.commit()
-        btn = InlineKeyboardMarkup([[InlineKeyboardButton("❌ ሰርዝ", callback_data=f'cancel_question:{question_id}')]])
-        text = f"#{question.subject}\n\n<b>{question.body}</b>\n\nበ {mention(user)} የተጠየቀ\n\n"
-        bot.edit_message_text(text, user_id, msg_id, reply_markup=btn)
-        db.update_query("UPDATE questions SET status = 'pending' WHERE question_id = %s", question_id)
+    message = bot.copy_message(CHANNEL_ID, user_id, msg_id, reply_markup=btns)
+    bot.answer_callback_query(call.id, "ጥያቄዎት ተለጥፏል።")
+    question.status = 'posted'
+    question.message_id = message.message_id
+    db.session.add(question)
+    db.session.commit()
+    channel = bot.get_chat(CHANNEL_ID)
+    bot.edit_message_text("<a href='https://t.me/%s/%d'>ጥያቄዎት ተለጥፏል!!</a>" % (channel.username, message.message_id),
+                          user_id, msg_id, disable_web_page_preview=True)
 
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('-report'))
+def report_question(call: types.CallbackQuery):
+    bot.answer_callback_query(call.id, "ጥቆማው ለአስተዳዳሪዎች ተልኳል!!")
+    question_id = int(call.data.split(":")[-1])
+    msg = bot.send_message(OWNER_ID, "አንድ ጥያቄ ተጠቁሟል።")
+    btn = InlineKeyboardMarkup([[InlineKeyboardButton("🗑 አጥፋ", callback_data=f'del-question:{question_id}')]])
+    bot.copy_message(OWNER_ID, call.message.chat.id, call.message.message_id, reply_to_message_id=msg.message_id,
+                     reply_markup=btn)
+
+
+@bot.callback_query_handler(lambda call: call.data.startswith('del-question'))
+def del_question(call: types.CallbackQuery):
+    question_id = int(call.data.split(":")[-1])
+    question = Question.query.filter_by(id=question_id).first()
+    bot.delete_message(CHANNEL_ID, question.message_id)
+    if question.asker.questions.filter_by(status='closed').first().count() >= 3:
+        bot.send_message(question.asker_id, "በተደጋጋሚ በለጠፉትና፤ ህግጋቶቻችንን በጣሱ ጥያቄዎቾ ምክኒያት እስከመጨረሻው ከዚህ ቦት ታግደዋል።")
+        question.asker.role = Role(name='banned')
     else:
-        bot.edit_message_reply_markup(user_id, msg_id)
-        bot.answer_callback_query(call.id, f"ይቅርታ፤ ይህ ጥያቄ በድጋሚ ሊላክ አይችልም", True)
+        bot.send_message(question.asker_id, "<b>‼️ ማስጠንቀቂያ</b>\n\n<a href='%s'>የርሶ ጥያቄ፤</a> በደረሰን ጥቆማ መሰረት ህግጋቶቻችንን "
+                                        "ሰለጣሰ ከማሰራጫችን ላይ ጠፍቷል። እባኮን እንደዚህ አይነት ጥያቄ በድጋሚ አይለጥፉ።\n\nበተደጋጋሚ ይህን አድርገዉ "
+                                        "ከተገኙ፤ ከቦቱ እስከ መጨረሺያዉ <b>ይታገዳሉ።</b>" % DEEPLINK+question.hash_link)
+
+    question.status = 'closed'
+    db.session.add(question)
+    db.session.commit()
+    bot.edit_message_reply_markup(OWNER_ID, call.message.message_id)
 
 
 @bot.callback_query_handler(lambda call: call.data.startswith('edit_user'))
@@ -903,20 +832,18 @@ def show_user_questions(user_id, index=0, show_all=False):
                 break
             status = question.status
 
-            if status == 'preview':
+            if status == 'previewing':
                 btn = on_question_button(user, question.id, question.setting.reply)
 
             elif status == 'cancelled':
                 btn = InlineKeyboardMarkup(
-                    [[InlineKeyboardButton("☑ አንደገና ላክ", callback_data=f'submit:{question.id}')]])
+                    [[InlineKeyboardButton("☑ አንደገና ለጥፍ", callback_data=f'post:{question.id}')]])
 
-            elif status == 'approved':
+            elif status == 'posted':
                 btn = InlineKeyboardMarkup([[InlineKeyboardButton(f"ዝርዝር({question.answers.count()})",
                                                                   callback_data=f'browse_answer:{question.id}'),
                                              InlineKeyboardButton("መልስ", callback_data=f"answer:{question.id}")]])
-            elif status == 'pending':
-                btn = InlineKeyboardMarkup(
-                    [[InlineKeyboardButton("❌ ሰርዝ", callback_data=f'cancel_question:{question.id}')]])
+
             else:
                 btn = None
 
@@ -1089,8 +1016,8 @@ def send_answer(user_id, answer_id, message_id=0):
                      reply_markup=on_answer_button(answer_id, message_id))
 
 
-@bot.callback_query_handler(lambda call: call.data.startswith('post'))
-def post_answer(call: types.CallbackQuery):
+@bot.callback_query_handler(lambda call: call.data.startswith('submit'))
+def submit_answer(call: types.CallbackQuery):
     user_id = call.message.chat.id
     message_id = call.message.message_id
     answer_id, msg_id = call.data.split(':')[1:]
@@ -1098,12 +1025,12 @@ def post_answer(call: types.CallbackQuery):
     user = User.query.filter_by(id=user_id).first()
     question = Question.query.get(answer.question_id)
 
-    if answer.status != 'preview':
+    if answer.status != 'previewing':
         bot.edit_message_reply_markup(user_id, message_id)
-        return bot.send_message(user_id, "ይህ መልስ ሊለጠፍ አይችልም!")
+        return bot.send_message(user_id, "ይህ መልስ ሊላክ አይችልም!")
 
     else:
-        bot.answer_callback_query(call.id, "ምላሾ ተለጥፏል!")
+        bot.answer_callback_query(call.id, "ምላሾ ተልኳል!")
         bot.delete_message(user_id, message_id)
         to_user = question.asker.id if not answer.reply else Answer.query.get(answer.reply).from_user_id
 
@@ -1114,7 +1041,7 @@ def post_answer(call: types.CallbackQuery):
 
         if question.reply or user_id == question.asker:
             ls.append(InlineKeyboardButton("↪ Reply", callback_data=f'reply_answer:{answer.answer_id}'))
-        ls.append(InlineKeyboardButton("⚠ ይጦቁሙ", callback_data=f'report_answer:{answer.answer_id}'))
+        ls.append(InlineKeyboardButton("⚠ ይጠቁሙ", callback_data=f'report_answer:{answer.answer_id}'))
         btn.add(*ls)
         answer.status = 'posted'
 
@@ -1135,10 +1062,13 @@ def post_answer(call: types.CallbackQuery):
             pass
         db.session.add(answer)
         db.session.commit()
-        bt = InlineKeyboardMarkup([[InlineKeyboardButton("መልስ", DEEPLINK + question.hash_link),
-                                    InlineKeyboardButton(f"ዝርዝር({question.answers.count()})",
-                                                         DEEPLINK + question.browse_link)]])
-        bot.edit_message_reply_markup(CHANNEL_ID, question.message_id, reply_markup=bt)
+        btns = InlineKeyboardMarkup(row_width=2)
+        btns.add(
+            InlineKeyboardButton("ምላሽ", url=DEEPLINK + question.hash_link),
+            InlineKeyboardButton("ዝርዝር(%d)" % question.answers.count(), url=DEEPLINK + question.browse_link),
+            InlineKeyboardButton("ይጠቁሙ", url=DEEPLINK + "report" + question.hash_link)
+        )
+        bot.edit_message_reply_markup(CHANNEL_ID, question.message_id, reply_markup=btns)
 
 
 @bot.callback_query_handler(lambda call: call.data.startswith('browse_answer'))
