@@ -1,7 +1,7 @@
 from telebot import util
 from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from flask_sqlalchemy.pagination import Pagination
-from utils.model import Permission
+from model import Permission
 
 
 def lang_button(first=False):
@@ -11,10 +11,10 @@ def lang_button(first=False):
     return lang
 
 
-main_text_en = ['📝 Ask Question', '🔅 My Questions', '👤 Profile', '🌐 Language', '💭 Feedback', '📃 Rules',
+main_text_en = ['📝 Ask Question', '🔅 My Questions', '👤 Profile', '🧧 Invite', '🌐 Language', '💭 Feedback', '📃 Rules',
                 '🎈 Contact']
 
-main_text_am = ['📝 ጠይቅ', '🔅 የኔ ጥያቄዎች', '👤 መግለጫ', '🌐 ቋንቋ', '💭 አስታየት', '📃 ህግጋት', '🎈 አግኝ']
+main_text_am = ['📝 ጠይቅ', '🔅 የኔ ጥያቄዎች', '👤 መግለጫ', '🧧 ጋብዝ', '🌐 ቋንቋ', '💭 አስታየት', '📃 ህግጋት', '🎈 አግኝ']
 
 
 def main_button(user):
@@ -26,8 +26,6 @@ def main_button(user):
     ad = []
     if user.can(Permission.SEND):
         ad.append(KeyboardButton("📝 ምልዕክት ላክ"))
-    if user.can(Permission.APPROVE):
-        ad.append(KeyboardButton("❔ ጥያቄዎች"))
     if user.can(Permission.SEE):
         ad.append("📊 ቆጠራ")
     btn.add(*ad, row_width=3)
@@ -44,7 +42,7 @@ def cancel(lang):
 
 
 subject_text = ["🇬🇧 English", "🇪🇹 አማርኛ", "🇪🇹 Afaan Oromoo", "🧪 Chemistry", "🧮 Math", "🔭 Physics", "⚽ HPE", "🔬 Biology",
-                "💻 ICT", "🌏 History", "🧭 Geography", "⚖ Civics", '✏ TD', "💶 Economics", '💰 Business']
+                "💻 ICT", "🌏 History", "🧭 Geography", "⚖ Civics", "💶 Economics", '💰 Business']
 
 
 def subject_button():
@@ -100,7 +98,7 @@ def on_question_button(user, question_id, reply=True):
         '📖 Edit Subject' if user.language == 'english' else "📖 አርትዕ ትምህርት": {'callback_data': f'edit:subject:{question_id}'},
          enb: {'callback_data': f'edit:enable:{question_id}' if not reply else f'edit:disable:{question_id}'},
         "❌ Cancel" if user.language == 'english' else "❌ ሰርዝ": {'callback_data': f'cancel_question:{question_id}'},
-        '✅ Submit' if user.language == 'english' else "✅ ላክ": {'callback_data': f'submit:{question_id}'}
+        '✅ post' if user.language == 'english' else "✅ ለጥፍ": {'callback_data': f'post:{question_id}'}
     }
     return util.quick_markup(edit)
 
@@ -153,6 +151,6 @@ def on_user_profile(the_user, user):
 def on_answer_button(answer_id, message_id=0):
     btn = InlineKeyboardMarkup()
     btn.add(*[InlineKeyboardButton("📝 አርትዕ መልስ", callback_data=f'edit:answer:{answer_id}:{message_id}'),
-              InlineKeyboardButton('✅ ለጥፍ', callback_data=f'post:{answer_id}:{message_id}'),
+              InlineKeyboardButton('✅ ላክ', callback_data=f'submit:{answer_id}:{message_id}'),
               ])
     return btn
