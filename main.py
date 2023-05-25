@@ -1,5 +1,4 @@
 import os
-
 from flask import request
 from telebot import apihelper, TeleBot, types
 import re
@@ -10,12 +9,11 @@ import filters
 from filters import Deeplink, LanguageFilter
 from text import Text
 from keyboard import *
-import logging
 from app import create_app, db
 from model import User, Role, Answer, Question, Permission, QuestionSetting
+import logging
 
 apihelper.ENABLE_MIDDLEWARE = True
-apihelper.proxy = {'https':'socks5://202.149.89.69:7999'}
 app = create_app(os.getenv("CONFIG"))
 TOKEN = app.config['TOKEN']
 bot = TeleBot(TOKEN, parse_mode='html')
@@ -26,28 +24,26 @@ def on_shell():
     return dict(db=db, User=User, Question=Question, Answer=Answer, Permission=Permission, Role=Role)
 
 
-#DEEPLINK = 'http://t.me/{0}?start='.format(bot.get_me().username)
+DEEPLINK = 'http://t.me/{0}?start='.format(bot.get_me().username)
 WEBHOOK_URL = app.config['WEBHOOK_URL']
 MAINTAIN = False
 PENDING = False
 CHANNEL_ID = int(app.config['CHANNEL_ID'])
 OWNER_ID = int(app.config['FLASK_ADMIN_ID'])
 markups = {}
-log = logging.getLogger("telebot")
-log.setLevel(logging.INFO)
 
 
 @bot.middleware_handler(update_types=['message'])
 def get_updates(bot_instance, update: Union[types.Update, types.Message]):
+    app.app_context().push()
     user_id = update.from_user.id
-    print("User Id", user_id)
+
     if update.chat.type == 'private':
         user = User.query.filter_by(id=user_id).first()
         if user is not None and user.role.permission == 0:
             update.content_type = 'banned'
         elif MAINTAIN:
             update.content_type = 'maintain'
-
         elif user is not None and not check_join(user_id) and user.language is not None:
             update.content_type = 'not_join'
 
@@ -85,6 +81,7 @@ def maintain(message: types.Message):
 
 @bot.message_handler(commands=['start'], chat_types=['private'], is_deeplink=False)
 def start_message(message: types.Message):
+    app.app_context().push()
     user_id = message.chat.id
     _user = User.query.filter_by(id=user_id).first()
     if _user is None:
@@ -101,7 +98,7 @@ def start_message(message: types.Message):
         text = "<i>Select your langauge / ቋንቋ ይምረጡ</i>"
         btn = lang_button()
     else:
-        text = _text.welcome()
+        text = _text.welcome
         btn = main_button(user)
     bot.send_message(user_id, text, reply_markup=btn)
     bot.delete_state(user_id)
@@ -113,6 +110,7 @@ def mention(user: User):
 
 @bot.message_handler(commands=['start'], is_deeplink=True, chat_types=['private'])
 def __start(message: types.Message):
+    app.app_context().push()
     user_id = message.chat.id
     text = message.text.split()[-1]
     question: Question = Question.query.filter_by(hash_link=text).first()
@@ -174,13 +172,16 @@ def parse_text_to_user(text: str, user):
 
 @bot.callback_query_handler(lambda call: call.data.startswith('lang'))
 def update_lang(call: types.CallbackQuery):
+    app.app_context().push()
     bot.answer_callback_query(call.id, "በመጫን ላይ....")
     user_id = call.message.chat.id
     code = call.data.split(":")[-1]
     user = User.query.filter_by(id=user_id).first()
+
     if code.endswith('f'):
         code = code.removesuffix('f')
-        user.language = code
+        _code = 'amharic' if code == 'am' else 'english'
+        user.language = _code
         db.session.add(user)
         db.session.commit()
         text = Text(user)
@@ -192,6 +193,7 @@ def update_lang(call: types.CallbackQuery):
 
 @bot.callback_query_handler(lambda call: call.data == "ask_question")
 def ask_question(call: types.CallbackQuery):
+    app.app_context().push()
     bot.delete_message(call.message.chat.id, call.message.message_id)
     user = User.query.get(call.message.chat.id)
     if user.language == "en":
@@ -202,9 +204,10 @@ def ask_question(call: types.CallbackQuery):
         am_button(call.message)
 
 
-@bot.message_handler(func=lambda msg: msg.text == "❌ Cancel", langugae="english", no_state=False,
-                     chat_types=['private'])
+@bot.message_handler(func=lambda msg: msg.text == "❌ Cancel", langugae="english",
+                     chat_types=['private'], state="*")
 def en_cancel(message: types.Message):
+    app.app_context().push()
     user_id = message.chat.id
     state = bot.get_state(user_id)
     user = db.user(user_id)
@@ -229,8 +232,10 @@ def en_cancel(message: types.Message):
     send_menu(user_id)
 
 
-@bot.message_handler(func=lambda msg: msg.text == "❌ ሰርዝ", language="am", chat_types=['private'])
+@bot.message_handler(func=lambda msg: msg.text == "❌ ሰርዝ", language="am", chat_types=['private'],
+                     state="*")
 def am_cancel(message: types.Message):
+    app.app_context().push()
     user_id = message.from_user.id
     state = bot.get_state(user_id)
     user = db.user(user_id)
@@ -255,6 +260,7 @@ def am_cancel(message: types.Message):
 
 @bot.message_handler(func=lambda message: message.text in main_text_en, language='english', chat_types=['private'])
 def en_button(message: types.Message):
+    app.app_context().push()
     user_id = message.chat.id
     text = message.text
     user = User.query.filter_by(id=user_id).first()
@@ -287,6 +293,7 @@ def en_button(message: types.Message):
 
 @bot.message_handler(func=lambda message: message.text in main_text_am, language='amharic', chat_types=['private'])
 def am_button(message: types.Message):
+    app.app_context().push()
     user_id = message.chat.id
     text = message.text
     user = User.query.filter_by(id=user_id).first()
@@ -300,7 +307,6 @@ def am_button(message: types.Message):
         show_user_questions(user_id)
 
     elif text == "👤 መግለጫ":
-        user = db.user(user_id)
         bot.send_message(user_id, _text.profile, reply_markup=user_button(user))
 
     elif text == "🌐 ቋንቋ":
@@ -311,7 +317,7 @@ def am_button(message: types.Message):
         bot.set_state(user_id, 'feedback')
 
     elif text == "📃 ህግጋት":
-        rules = open("rules/amrules.txt")
+        rules = open("rules/amrules.txt", 'r')
         bot.send_message(user_id, rules.read())
         rules.close()
 
@@ -321,6 +327,7 @@ def am_button(message: types.Message):
 
 @bot.message_handler(func=lambda message: message.text in ["📝 መልዕክት ላክ", "📊 ቆጠራ"], chat_types=['private'])
 def admin_buttons(message: types.Message):
+    app.app_context().push()
     user_id = message.chat.id
     user = User.query.filter_by(id=user_id).first()
 
@@ -349,6 +356,7 @@ def admin_buttons(message: types.Message):
 
 @bot.message_handler(state='message', content_types=util.content_type_media, chat_types=['private'])
 def got_message(message: types.Message):
+    app.app_context().push()
     user_id = message.chat.id
     msg_id = message.message_id
     btn = InlineKeyboardMarkup(row_width=2)
@@ -364,10 +372,11 @@ def got_message(message: types.Message):
 
 @bot.callback_query_handler(func=lambda call: re.match('^sm', call.data))
 def on_got_message(call: types.CallbackQuery):
+
     bot.answer_callback_query(call.id)
     data = call.data.split(':')[-1]
     user_id = call.message.chat.id
-    user = db.user(user_id)
+    user = User.query.filter_by(id=user_id)
     if data == 'add':
         bot.send_message(call.message.chat.id,
                          "የአዝራርህን ጽሁፍና ማያያዢያውን ክሰር ባለው መልኩ ይላኩ:\n\n<code>ሙከራ -> www.text.com</code>",
@@ -448,8 +457,9 @@ def send_menu(user_id):
         bot.send_message(user_id, "<i>Select your langauge / ቋንቋ ይምረጡ</i>", reply_markup=lang_button())
 
 
-@bot.callback_query_handler(func=lambda call: call.startswith('pagin'))
+@bot.callback_query_handler(func=lambda call: call.data.startswith('pagin'))
 def on_pagination(call: types.CallbackQuery):
+    app.app_context().push()
     bot.answer_callback_query(call.id)
     page = call.data.split("=")[-1]
     page = int(page)
@@ -471,6 +481,7 @@ class UserState:
 
 @bot.message_handler(state=UserState.get_question, content_types=util.content_type_media)
 def get_question(message: types.Message):
+    app.app_context().push()
     user_id = message.chat.id
     user = User.query.filter_by(id=user_id).first()
     if not message.text:
@@ -485,6 +496,7 @@ def get_question(message: types.Message):
 
 @bot.message_handler(state=UserState.get_subject)
 def get_subject(message: types.Message):
+    app.app_context().push()
     user_id = message.chat.id
     text = message.text
     user = User.query.filter_by(id=user_id).first()
@@ -512,6 +524,7 @@ def get_subject(message: types.Message):
 
 @bot.callback_query_handler(lambda call: re.search(r'edit:(subject|question|enable|disable)', call.data))
 def __edit_question(call: types.CallbackQuery):
+    app.app_context().push()
     user_id = call.message.chat.id
     msg_id = call.message.message_id
     question_id = int(call.data.split(":")[-1])
@@ -562,6 +575,7 @@ def __edit_question(call: types.CallbackQuery):
 
 @bot.message_handler(state='edit_question', content_types=util.content_type_media)
 def edit_question(message: types.Message):
+    app.app_context().push()
     user_id = message.chat.id
     with bot.retrieve_data(user_id) as data:
         question_id = data['question_id']
@@ -580,6 +594,7 @@ def edit_question(message: types.Message):
 
 @bot.message_handler(state='edit_subject')
 def edit_subject(message: types.Message):
+    app.app_context().push()
     user_id = message.chat.id
     with bot.retrieve_data(user_id) as data:
         question_id = data['question_id']
@@ -613,6 +628,7 @@ def send_question(user_id, question_id):
 
 @bot.callback_query_handler(lambda call: re.search(r'cancel_question', call.data))
 def cancel_question(call: types.CallbackQuery):
+    app.app_context().push()
     user_id = call.message.chat.id
     message_id = call.message.message_id
     question_id = int(call.data.split(":")[-1])
@@ -632,6 +648,7 @@ def cancel_question(call: types.CallbackQuery):
 
 @bot.callback_query_handler(lambda call: call.data.startswith('post'))
 def post_question(call: types.CallbackQuery):
+    app.app_context().push()
     user_id = call.message.chat.id
     question_id = int(call.data.split(":")[-1])
     question = db.question(question_id)
@@ -656,6 +673,7 @@ def post_question(call: types.CallbackQuery):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('-report'))
 def report_question(call: types.CallbackQuery):
+    app.app_context().push()
     bot.answer_callback_query(call.id, "ጥቆማው ለአስተዳዳሪዎች ተልኳል!!")
     question_id = int(call.data.split(":")[-1])
     msg = bot.send_message(OWNER_ID, "አንድ ጥያቄ ተጠቁሟል።")
@@ -666,6 +684,7 @@ def report_question(call: types.CallbackQuery):
 
 @bot.callback_query_handler(lambda call: call.data.startswith('del-question'))
 def del_question(call: types.CallbackQuery):
+    app.app_context().push()
     question_id = int(call.data.split(":")[-1])
     question = Question.query.filter_by(id=question_id).first()
     bot.delete_message(CHANNEL_ID, question.message_id)
@@ -685,6 +704,7 @@ def del_question(call: types.CallbackQuery):
 
 @bot.callback_query_handler(lambda call: call.data.startswith('edit_user'))
 def edit_user(call: types.CallbackQuery):
+    app.app_context().push()
     user_id = call.message.chat.id
     message_id = call.message.message_id
     content = call.data.split(":")[-1]
@@ -709,6 +729,7 @@ def edit_user(call: types.CallbackQuery):
 
 @bot.message_handler(state='edit_name')
 def edit_name(message: types.Message):
+    app.app_context().push()
     user_id = message.chat.id
     text = message.text
     regex = re.fullmatch(r"[a-zA-Zሀ-ፐ]+", text)
@@ -734,6 +755,7 @@ def edit_name(message: types.Message):
 
 @bot.message_handler(state='edit_bio')
 def edit_bio(message: types.Message):
+    app.app_context().push()
     user_id = message.chat.id
     text = message.text
     user = User.query.filter_by(id=user_id).first()
@@ -759,6 +781,7 @@ def edit_bio(message: types.Message):
 
 @bot.callback_query_handler(lambda call: call.data.startswith("gender"))
 def edit_gender(call: types.CallbackQuery):
+    app.app_context().push()
     bot.answer_callback_query(call.id)
     user_id = call.message.chat.id
     message_id = call.message.message_id
@@ -783,6 +806,7 @@ def edit_gender(call: types.CallbackQuery):
 
 @bot.callback_query_handler(lambda call: call.data.startswith('report'))
 def report_answer(call: types.CallbackQuery):
+    app.app_context().push()
     bot.answer_callback_query(call.id, '')
     user_id = call.from_user.id
     ans_id = call.data.split(":")[-1]
@@ -792,6 +816,7 @@ def report_answer(call: types.CallbackQuery):
 
 @bot.callback_query_handler(lambda call: re.search(r"my_(all|more)_question", call.data))
 def show_more_user_question(call: types.CallbackQuery):
+    app.app_context().push()
     bot.answer_callback_query(call.id, "ጥያቄዎችህን በመጫን ላይ....")
     user_id = call.message.chat.id
     message_id = call.message.message_id
@@ -808,6 +833,7 @@ def show_more_user_question(call: types.CallbackQuery):
 
 @bot.callback_query_handler(lambda call: re.search(r"all_answer|more_answer", call.data))
 def show_more_answers(call: types.CallbackQuery):
+    app.app_context().push()
     bot.answer_callback_query(call.id, "መልሶችን በመጫን ላይ....")
     user_id = call.message.chat.id
     message_id = call.message.message_id
@@ -826,7 +852,7 @@ def show_user_questions(user_id, index=0, show_all=False):
     showed = False
     user = User.query.filter_by(id=user_id).first()
     count = 0
-    for question in Question.query.filter_by(asker=user).all()[index:]:
+    for question in Question.query.filter_by(asker_id=user.id).all()[index:]:
         try:
             if not show_all and count == 10:
                 break
@@ -865,7 +891,7 @@ def show_user_questions(user_id, index=0, show_all=False):
         if user.language == 'english':
             bot.send_message(user_id, "Sorry you don't have any asked question yet.", reply_markup=ask_q)
 
-        elif user.language == 'am':
+        else:
             bot.send_message(user_id, "ይቅርታ እስካሁን ምንም የጠየቁት ጥያቄ የለም ።", reply_markup=ask_q)
 
     else:
@@ -940,6 +966,7 @@ def show_answers(user_id, question_id, index=0, show_all=False):
 
 @bot.message_handler(state='get_answer', content_types=util.content_type_media)
 def get_answer(message: types.Message):
+    app.app_context().push()
     user_id = message.chat.id
     user = User.query.filter_by(id=user_id).first()
 
@@ -962,6 +989,7 @@ def get_answer(message: types.Message):
 
 @bot.callback_query_handler(lambda call: re.search(r'edit:answer', call.data))
 def edit_answer(call: types.CallbackQuery):
+    app.app_context().push()
     bot.answer_callback_query(call.id)
     user_id = call.message.chat.id
     message_id = call.message.message_id
@@ -984,6 +1012,7 @@ def edit_answer(call: types.CallbackQuery):
 
 @bot.message_handler(state='edit_answer', content_types=util.content_type_media)
 def edit_answer(message: types.Message):
+    app.app_context().push()
     user_id = message.chat.id
     user = User.query.filter_by(id=user_id).first()
 
@@ -1018,6 +1047,7 @@ def send_answer(user_id, answer_id, message_id=0):
 
 @bot.callback_query_handler(lambda call: call.data.startswith('submit'))
 def submit_answer(call: types.CallbackQuery):
+    app.app_context().push()
     user_id = call.message.chat.id
     message_id = call.message.message_id
     answer_id, msg_id = call.data.split(':')[1:]
@@ -1060,6 +1090,7 @@ def submit_answer(call: types.CallbackQuery):
 
         except ApiTelegramException:
             pass
+
         db.session.add(answer)
         db.session.commit()
         btns = InlineKeyboardMarkup(row_width=2)
@@ -1073,6 +1104,7 @@ def submit_answer(call: types.CallbackQuery):
 
 @bot.callback_query_handler(lambda call: call.data.startswith('browse_answer'))
 def browse_answer(call: types.CallbackQuery):
+    app.app_context().push()
     bot.answer_callback_query(call.id, "በመጫን ላይ....")
     user_id = call.message.chat.id
     question_id = call.data.split(":")[-1]
@@ -1081,6 +1113,7 @@ def browse_answer(call: types.CallbackQuery):
 
 @bot.callback_query_handler(lambda call: call.data.startswith('answer'))
 def answer_to_question(call: types.CallbackQuery):
+    app.app_context().push()
     bot.answer_callback_query(call.id)
     user_id = call.message.chat.id
     question_id = int(call.data.split(':')[-1])
@@ -1094,6 +1127,7 @@ def answer_to_question(call: types.CallbackQuery):
 
 @bot.callback_query_handler(lambda call: call.data.startswith('reply_answer'))
 def reply_answer(call: types.CallbackQuery):
+    app.app_context().push()
     bot.answer_callback_query(call.id)
     user_id = call.message.chat.id
     user = User.query.filter_by(id=user_id).first()
@@ -1111,6 +1145,7 @@ def reply_answer(call: types.CallbackQuery):
 
 @bot.callback_query_handler(lambda call: call.data.startswith("user"))
 def get_user(call: types.CallbackQuery):
+    app.app_context().push()
     user_id = call.message.chat.id
     current_user = User.query.filter_by(id=user_id).first()
     content, usr_id = call.data.split(':')[1:]
@@ -1172,6 +1207,7 @@ def get_user(call: types.CallbackQuery):
 
 @bot.message_handler(state='chat', content_types=util.content_type_media)
 def chat(message: types):
+    app.app_context().push()
     user_id = message.from_user.id
     _from = User.query.filter_by(id=user_id).first()
     with bot.retrieve_data(user_id) as data:
@@ -1192,6 +1228,7 @@ def chat(message: types):
 
 @bot.message_handler(state='admin_message', content_types=['text'])
 def admin_message(message: types.Message):
+    app.app_context().push()
     user_id = message.from_user.id
     with bot.retrieve_data(user_id) as data:
         to_user = data['to_user']
@@ -1208,6 +1245,7 @@ def admin_message(message: types.Message):
 
 @bot.message_handler(state='feedback', content_types=util.content_type_media)
 def get_user_feedback(message: types.Message):
+    app.app_context().push()
     user_id = message.from_user.id
     user = User.query.filter_by(id=user_id).first()
     if not message.text:
@@ -1226,7 +1264,7 @@ def get_user_feedback(message: types.Message):
 @bot.message_handler(commands=['get'], chat_id=[OWNER_ID])
 def get(message: types.Message):
     text = message.text.split()
-    user = db.user(text[-1])
+    user = User.get(text[-1])
     if user.status is not None:
         message.text = "/start {}".format(user.link)
         __start(message)
@@ -1258,11 +1296,13 @@ def webhook():
     return "OK", 200
 
 
-bot.add_custom_filter(LanguageFilter())
+bot.add_custom_filter(LanguageFilter(app))
 bot.add_custom_filter(Deeplink())
 bot.add_custom_filter(StateFilter(bot))
 bot.add_custom_filter(ChatFilter())
 
 if __name__ == "__main__":
-    #app.run(host='0.0.0.0', port=int(os.getenv("PORT", 5000)))
-    bot.infinity_polling(timeout=300)
+    print("Bot started polling")
+    bot.infinity_polling()
+
+
