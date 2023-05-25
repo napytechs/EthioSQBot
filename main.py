@@ -5,13 +5,12 @@ import re
 from typing import Union
 from telebot.apihelper import ApiTelegramException
 from telebot.custom_filters import StateFilter, ChatFilter
-import filters
-from filters import Deeplink, LanguageFilter
-from text import Text
-from keyboard import *
+import utils.filters as filters
+from utils.filters import Deeplink, LanguageFilter
+from utils.text import Text
+from button.keyboard import *
 from app import create_app, db
-from model import User, Role, Answer, Question, Permission, QuestionSetting
-import logging
+from utils.model import User, Role, Answer, Question, Permission, QuestionSetting
 
 apihelper.ENABLE_MIDDLEWARE = True
 app = create_app(os.getenv("CONFIG"))
