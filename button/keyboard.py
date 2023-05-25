@@ -11,10 +11,10 @@ def lang_button(first=False):
     return lang
 
 
-main_text_en = ['📝 Ask Question', '🔅 My Questions', '👤 Profile', '🧧 Invite', '🌐 Language', '💭 Feedback', '📃 Rules',
+main_text_en = ['📝 Ask Question', '🔅 My Questions', '👤 Profile', '🌐 Language', '💭 Feedback', '📃 Rules',
                 '🎈 Contact']
 
-main_text_am = ['📝 ጠይቅ', '🔅 የኔ ጥያቄዎች', '👤 መግለጫ', '🧧 ጋብዝ', '🌐 ቋንቋ', '💭 አስታየት', '📃 ህግጋት', '🎈 አግኝ']
+main_text_am = ['📝 ጠይቅ', '🔅 የኔ ጥያቄዎች', '👤 መግለጫ', '🌐 ቋንቋ', '💭 አስታየት', '📃 ህግጋት', '🎈 አግኝ']
 
 
 def main_button(user):
@@ -132,7 +132,7 @@ def user_gender_button(user):
 def on_user_profile(the_user, user):
     btn = InlineKeyboardMarkup()
 
-    if the_user.user_id != user.user_id:
+    if the_user.id != user.id:
         btn.add(InlineKeyboardButton("📝 መልዕክት ላክ", callback_data=f'user:chat:{the_user.user_id}'))
 
     if the_user.role.name == "admin":
