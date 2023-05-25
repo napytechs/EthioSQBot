@@ -1,15 +1,24 @@
+import os
+
 from telebot.custom_filters import SimpleCustomFilter
-from model import User
+from utils.model import User
 
 
 class LanguageFilter(SimpleCustomFilter):
     key = 'language'
+    app = None
+
+    def __init__(self, app):
+        self.app = app
 
     @classmethod
     def check(self, message):
-        user = User.query.get(message.chat.id)
+        from app import create_app
+        app = create_app(os.getenv("CONFIG"))
+        app.app_context().push()
+        user = User.query.filter_by(id=message.chat.id).first()
         if user:
-            return user.langauge
+            return user.language
         else:
             return None
 
