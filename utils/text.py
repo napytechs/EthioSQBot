@@ -1,4 +1,4 @@
-from filters import parse_time
+from .filters import parse_time
 
 
 class Text:
@@ -31,7 +31,7 @@ class Text:
                                                                                      timeago.format(self.user.since_member))
         else:
             return '<b>%s</b>\n<b>የጠየቁት ጥያቄ </b>%s\n' \
-                   '<b>የመለሱት ጥያቄ <b>%s</b>\n\n<b>%s</b>\n<i>የተቅላቀሉት %s</i>' % (name,
+                   '<b>የመለሱት ጥያቄ %s</b>\n\n<b>%s</b>\n<i>የተቅላቀሉት %s</i>' % (name,
                                                                                 self.user.questions.count(),
                                                                                 self.user.answers.count(),
                                                                                 self.user.bio,

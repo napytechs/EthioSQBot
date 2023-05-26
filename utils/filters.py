@@ -1,7 +1,7 @@
 import os
 
 from telebot.custom_filters import SimpleCustomFilter
-from utils.model import User
+from .model import User
 
 
 class LanguageFilter(SimpleCustomFilter):
@@ -13,7 +13,7 @@ class LanguageFilter(SimpleCustomFilter):
 
     @classmethod
     def check(self, message):
-        from app import create_app
+        from app_setup import create_app
         app = create_app(os.getenv("CONFIG"))
         app.app_context().push()
         user = User.query.filter_by(id=message.chat.id).first()

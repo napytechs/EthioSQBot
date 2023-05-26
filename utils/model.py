@@ -1,4 +1,4 @@
-from app import db
+from app_setup import db
 from datetime import datetime
 import os
 
@@ -6,11 +6,11 @@ import os
 class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.BigInteger, primary_key=True, nullable=False)
-    name = db.Column(db.String, nullable=False, default='ተማሪ')
+    name = db.Column(db.String(50), nullable=False, default='ተማሪ')
     since_member = db.Column(db.DateTime(), default=datetime.utcnow)
     language = db.Column(db.String(10))
     bio = db.Column(db.String(100))
-    gender = db.Column(db.String(6), default='custom')
+    gender = db.Column(db.String(6), default='')
     questions = db.relationship("Question", backref='asker', lazy='dynamic')
     answers = db.relationship("Answer", backref='from_user', lazy='dynamic')
     joined = db.Column(db.Boolean, default=False)
@@ -19,6 +19,8 @@ class User(db.Model):
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
+        if self.gender is None:
+            self.gender = ''
         if self.role is None:
             if self.id == int(os.getenv('FLASK_ADMIN_ID')):
                 self.role = Role.query.filter_by(name='admin').first()
@@ -31,8 +33,9 @@ class User(db.Model):
     def is_admin(self):
         return self.can(Permission.ADMIN)
 
-    def generate_link(self, max_id):
+    def generate_link(self):
         import hashlib
+        max_id = self.query.count()
         self.hash_link = hashlib.sha256(str(max_id + 1).encode()).hexdigest()
 
     def __repr__(self):
@@ -45,12 +48,16 @@ class Question(db.Model):
     asker_id = db.Column(db.BigInteger, db.ForeignKey('users.id'))
     body = db.Column(db.String(4000), nullable=False)
     hash_link = db.Column(db.String(128), nullable=False, unique=True)
-    subject = db.Column(db.String, nullable=False)
+    subject = db.Column(db.String(20), nullable=False)
     timestamp = db.Column(db.DateTime(), default=datetime.utcnow)
-    status = db.Column(db.String, default='preview')
+    status = db.Column(db.String(20), default='previewing')
     setting = db.relationship("QuestionSetting", backref='onquestion', lazy='dynamic')
     browse_link = db.Column(db.String(64), nullable=False, unique=True)
     message_id = db.Column(db.Integer)
+
+    def __init__(self, *args, **kwargs):
+        if self.setting is None:
+            self.setting = QuestionSetting(reply=True)
 
     def generate_link(self):
         import hashlib
@@ -62,8 +69,12 @@ class Question(db.Model):
         max_id = self.query.count()
         self.browse_link = hashlib.sha256(str(~(max_id+1)).encode()).hexdigest()
 
+    def __repr__(self):
+        return "<Question by %s>" % self.asker
+
 
 class QuestionSetting(db.Model):        
+    __tablename__ = 'questionSetting'
     id = db.Column(db.Integer, primary_key=True, nullable=False)
     question_id = db.Column(db.Integer, db.ForeignKey('questions.id'))
     reply = db.Column(db.Boolean, default=True)
@@ -79,7 +90,7 @@ class Answer(db.Model):
     reply = db.Column(db.Integer)
     timestamp = db.Column(db.DateTime(), default=datetime.utcnow)
     message_id = db.Column(db.Integer)
-    status = db.Column(db.String, default='preview')
+    status = db.Column(db.String(20), default='preview')
 
     def generate_link(self):
         import hashlib
@@ -92,7 +103,6 @@ class Permission:
     ANSWER = 2
     SEND = 4
     SEE = 8
-    APPROVE = 16
     MODERATE = 32
     BAN = 64
     MANAGE = 128
@@ -105,6 +115,7 @@ class Role(db.Model):
     name = db.Column(db.String(10), nullable=False)
     permission = db.Column(db.Integer, nullable=False)
     user = db.relationship("User",  backref='role', lazy='dynamic')
+
     def __repr__(self):
         return "<Role %s>" % self.name
 
@@ -135,11 +146,11 @@ class Role(db.Model):
     @staticmethod
     def insert_roles():
         roles = {
+            'banned': [0],
             'user': [Permission.ASK, Permission.ANSWER],
             'moderator': [Permission.ANSWER, Permission.ASK, Permission.MODERATE, Permission.SEE, Permission.SEND],
             'admin': [Permission.ASK, Permission.ANSWER, Permission.MODERATE, Permission.ADMIN,
                       Permission.BAN, Permission.MANAGE, Permission.SEE, Permission.SEND]
-
         }
         
         for r in roles:
