@@ -5,11 +5,11 @@ import re
 from typing import Union
 from telebot.apihelper import ApiTelegramException
 from telebot.custom_filters import StateFilter, ChatFilter
-import utils.filters as filters
+from utils import filters
 from utils.filters import Deeplink, LanguageFilter
 from utils.text import Text
 from button.keyboard import *
-from app import create_app, db
+from app_setup import create_app, db
 from utils.model import User, Role, Answer, Question, Permission, QuestionSetting
 
 apihelper.ENABLE_MIDDLEWARE = True
