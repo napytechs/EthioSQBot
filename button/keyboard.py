@@ -1,7 +1,6 @@
 from telebot import util
 from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
-from flask_sqlalchemy.pagination import Pagination
-from model import Permission
+from utils.model import Permission
 
 
 def lang_button(first=False):
