@@ -1,26 +1,17 @@
 import os
 
 from telebot.custom_filters import SimpleCustomFilter
-from .model import User
+from .model import User, session
 
 
 class LanguageFilter(SimpleCustomFilter):
     key = 'language'
     app = None
 
-    def __init__(self, app):
-        self.app = app
-
     @classmethod
-    def check(self, message):
-        from app_setup import create_app
-        app = create_app(os.getenv("CONFIG"))
-        app.app_context().push()
-        user = User.query.filter_by(id=message.chat.id).first()
-        if user:
-            return user.language
-        else:
-            return None
+    def check(cls, message):
+        lang = session.query(User.language).filter_by(id=message.chat.id).first()
+        return lang
 
 
 class Deeplink(SimpleCustomFilter):
