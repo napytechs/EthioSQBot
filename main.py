@@ -10,35 +10,26 @@ from utils.filters import Deeplink, LanguageFilter
 from utils.text import Text
 from button.keyboard import *
 from app_setup import create_app, db
-from utils.model import User, Role, Answer, Question, Permission, QuestionSetting
+from utils.model import User, Role, Answer, Question, Permission, QuestionSetting, session
 
 apihelper.ENABLE_MIDDLEWARE = True
-app = create_app(os.getenv("CONFIG"))
-TOKEN = app.config['TOKEN']
+TOKEN = os.getenv('TOKEN')
 bot = TeleBot(TOKEN, parse_mode='html')
 
-
-@app.shell_context_processor
-def on_shell():
-    return dict(db=db, User=User, Question=Question, Answer=Answer, Permission=Permission, Role=Role)
-
-
 DEEPLINK = 'http://t.me/{0}?start='.format(bot.get_me().username)
-WEBHOOK_URL = app.config['WEBHOOK_URL']
 MAINTAIN = False
 PENDING = False
-CHANNEL_ID = int(app.config['CHANNEL_ID'])
-OWNER_ID = int(app.config['FLASK_ADMIN_ID'])
+CHANNEL_ID = int(os.getenv('CHANNEL_ID'))
+OWNER_ID = int(os.getenv('FLASK_ADMIN_ID'))
 markups = {}
 
 
 @bot.middleware_handler(update_types=['message'])
 def get_updates(bot_instance, update: Union[types.Update, types.Message]):
-    app.app_context().push()
     user_id = update.from_user.id
 
     if update.chat.type == 'private':
-        user = User.query.filter_by(id=user_id).first()
+        user = session.query(User).filter_by(id=user_id).first()
         if user is not None and user.role.permission == 0:
             update.content_type = 'banned'
         elif MAINTAIN:
@@ -80,17 +71,16 @@ def maintain(message: types.Message):
 
 @bot.message_handler(commands=['start'], chat_types=['private'], is_deeplink=False)
 def start_message(message: types.Message):
-    app.app_context().push()
     user_id = message.chat.id
-    _user = User.query.filter_by(id=user_id).first()
+    _user = session.query(User).filter_by(id=user_id).first()
     if _user is None:
         new_user = User(id=user_id)
         new_user.generate_link()
-        db.session.add(new_user)
-        db.session.commit()
+        session.add(new_user)
+        session.commit()
         return bot.send_message(user_id, "<i>Select your langauge / ቋንቋ ይምረጡ</i>", reply_markup=lang_button(True))
 
-    user: User = User.query.filter_by(id=user_id).first()
+    user: User = session.query(User).filter_by(id=user_id).first()
     _text = Text(user)
 
     if user.language is None:
@@ -109,13 +99,12 @@ def mention(user: User):
 
 @bot.message_handler(commands=['start'], is_deeplink=True, chat_types=['private'])
 def __start(message: types.Message):
-    app.app_context().push()
     user_id = message.chat.id
     text = message.text.split()[-1]
-    question: Question = Question.query.filter_by(hash_link=text).first()
-    answer: Answer = Answer.query.filter_by(hash_link=text).first()
-    user: User = User.query.filter_by(hash_link=text).first()
-    current_user: User = User.query.filter_by(id=user_id).first()
+    question: Question = session.query(Question).filter_by(hash_link=text).first()
+    answer: Answer = session.query(Answer).filter_by(hash_link=text).first()
+    user: User = session.query(User).filter_by(hash_link=text).first()
+    current_user: User = session.query(User).filter_by(id=user_id).first()
     bot.delete_state(user_id)
 
     if current_user is None:
@@ -144,7 +133,7 @@ def __start(message: types.Message):
         show_answers(user_id, question.id)
 
     elif answer is not None:
-        btn = InlineKeyboardMarkup([[InlineKeyboardButton(f"ዝርዝር({answer.count()})",
+        btn = InlineKeyboardMarkup([[InlineKeyboardButton(f"ዝርዝር({len(answer.question.answers)})",
                                                           callback_data=f'browse_answer:{answer.question_id}'),
                                      InlineKeyboardButton("መልስ", callback_data=f'answer:{answer.question_id}')]])
 
@@ -171,18 +160,17 @@ def parse_text_to_user(text: str, user):
 
 @bot.callback_query_handler(lambda call: call.data.startswith('lang'))
 def update_lang(call: types.CallbackQuery):
-    app.app_context().push()
     bot.answer_callback_query(call.id, "በመጫን ላይ....")
     user_id = call.message.chat.id
     code = call.data.split(":")[-1]
-    user = User.query.filter_by(id=user_id).first()
+    user = session.query(User).filter_by(id=user_id).first()
 
     if code.endswith('f'):
         code = code.removesuffix('f')
         _code = 'amharic' if code == 'am' else 'english'
         user.language = _code
-        db.session.add(user)
-        db.session.commit()
+        session.add(user)
+        session.commit()
         text = Text(user)
         bot.delete_message(user_id, call.message.message_id)
         bot.send_message(user_id, text.welcome, reply_markup=main_button(user))
@@ -192,10 +180,9 @@ def update_lang(call: types.CallbackQuery):
 
 @bot.callback_query_handler(lambda call: call.data == "ask_question")
 def ask_question(call: types.CallbackQuery):
-    app.app_context().push()
     bot.delete_message(call.message.chat.id, call.message.message_id)
-    user = User.query.get(call.message.chat.id)
-    if user.language == "en":
+    user = session.query(User).get(call.message.chat.id)
+    if user.language == "english":
         call.message.text = "📝 Ask Question"
         en_button(call.message)
     else:
@@ -203,13 +190,12 @@ def ask_question(call: types.CallbackQuery):
         am_button(call.message)
 
 
-@bot.message_handler(func=lambda msg: msg.text == "❌ Cancel", langugae="english",
+@bot.message_handler(func=lambda msg: msg.text == "❌ Cancel", language="english",
                      chat_types=['private'], state="*")
 def en_cancel(message: types.Message):
-    app.app_context().push()
     user_id = message.chat.id
     state = bot.get_state(user_id)
-    user = db.user(user_id)
+    user = session.query(User).filter_by(id=user_id).first()
     text = Text(user)
     if state in ["edit_question", "edit_subject"]:
         with bot.retrieve_data(user_id) as data:
@@ -223,7 +209,7 @@ def en_cancel(message: types.Message):
         with bot.retrieve_data(user_id) as data:
             answer_id = data['answer_id']
             msg_id = data['message_id']
-        answer = Answer.query.filter_by(id=answer_id).first()
+        answer = session.query(Answer).filter_by(id=answer_id).first()
         text = f"<b>{answer.body}</b>\n\nበ {mention(user)} የተመለሰ"
         bot.send_message(user_id, text, reply_markup=on_answer_button(answer_id, msg_id))
 
@@ -231,13 +217,12 @@ def en_cancel(message: types.Message):
     send_menu(user_id)
 
 
-@bot.message_handler(func=lambda msg: msg.text == "❌ ሰርዝ", language="am", chat_types=['private'],
+@bot.message_handler(func=lambda msg: msg.text == "❌ ሰርዝ", language="amharic", chat_types=['private'],
                      state="*")
 def am_cancel(message: types.Message):
-    app.app_context().push()
     user_id = message.from_user.id
     state = bot.get_state(user_id)
-    user = db.user(user_id)
+    user = session.query(User).filter_by(id=user_id).first()
     if state in ["edit_question", "edit_subject"]:
         with bot.retrieve_data(user_id) as data:
             question_id = data["question_id"]
@@ -257,105 +242,8 @@ def am_cancel(message: types.Message):
     return send_menu(user_id)
 
 
-@bot.message_handler(func=lambda message: message.text in main_text_en, language='english', chat_types=['private'])
-def en_button(message: types.Message):
-    app.app_context().push()
-    user_id = message.chat.id
-    text = message.text
-    user = User.query.filter_by(id=user_id).first()
-    _text = Text(user)
-    if text == "📝 Ask Question":
-        bot.send_message(user_id, _text.question, reply_markup=cancel('english'))
-        bot.set_state(user_id, UserState.get_question)
-
-    elif text == "🔅 My Questions":
-        show_user_questions(user_id)
-
-    elif text == "👤 Profile":
-        bot.send_message(user_id, _text.profile, reply_markup=user_button(user))
-
-    elif text == "🌐 Language":
-        bot.send_message(user_id, "<i>Select your langauge / ቋንቋ ይምረጡ</i>", reply_markup=lang_button())
-
-    elif text == "💭 Feedback":
-        bot.send_message(user_id, "Send us your feedback with text", reply_markup=cancel("english"))
-        bot.set_state(user_id, 'feedback')
-
-    elif text == "📃 Rules":
-        rules = open("rules/enrules.txt")
-        bot.send_message(user_id, rules.read())
-        rules.close()
-
-    elif text == '🎈 Contact':
-        bot.send_message(user_id, "<b>✔ Contact the developer\n\n👨‍💻 @Natiprado</b>")
-
-
-@bot.message_handler(func=lambda message: message.text in main_text_am, language='amharic', chat_types=['private'])
-def am_button(message: types.Message):
-    app.app_context().push()
-    user_id = message.chat.id
-    text = message.text
-    user = User.query.filter_by(id=user_id).first()
-    _text = Text(user)
-
-    if text == "📝 ጠይቅ":
-        bot.send_message(user_id, _text.question, reply_markup=cancel('amharic'))
-        bot.set_state(user_id, UserState.get_question)
-
-    elif text == "🔅 የኔ ጥያቄዎች":
-        show_user_questions(user_id)
-
-    elif text == "👤 መግለጫ":
-        bot.send_message(user_id, _text.profile, reply_markup=user_button(user))
-
-    elif text == "🌐 ቋንቋ":
-        bot.send_message(user_id, "<i>Select your langauge / ቋንቋ ይምረጡ</i>", reply_markup=lang_button())
-
-    elif text == "💭 አስታየት":
-        bot.send_message(user_id, "ያሎትን አስታየት በጽሑፍ ያድርሱን።", reply_markup=cancel("amharic"))
-        bot.set_state(user_id, 'feedback')
-
-    elif text == "📃 ህግጋት":
-        rules = open("rules/amrules.txt", 'r')
-        bot.send_message(user_id, rules.read())
-        rules.close()
-
-    elif text == "🎈 አግኝ":
-        bot.send_message(user_id, "<b>✔ የቦቱን መስራች ያግኙ\n\n👨‍💻 @Natiprado</b>")
-
-
-@bot.message_handler(func=lambda message: message.text in ["📝 መልዕክት ላክ", "📊 ቆጠራ"], chat_types=['private'])
-def admin_buttons(message: types.Message):
-    app.app_context().push()
-    user_id = message.chat.id
-    user = User.query.filter_by(id=user_id).first()
-
-    if user.role.name == 'user':
-        return
-
-    if message.text == '📝 መልዕክት ላክ':
-        if user_id == OWNER_ID or user.can(Permission.SEND):
-            bot.send_message(user_id, "✳️አዲስ መልዕክት ይጻፉ.\n\nአንዲሁም ከለሎች ማሰራጫ ወይም ማውጊያ ወደዚህ ሊልኩ ይችላሉ።",
-                             reply_markup=cancel(user.language))
-            bot.set_state(user_id, 'message')
-            markups.clear()
-
-    else:
-        if user.can(Permission.SEE):
-            users = User.query.order_by(User.since_member.desc())
-            btn = pagination_button(1, users.count())
-            text = ''
-            count = 0
-            for user in users.limit(10):
-                count += 1
-                text += "<code>#%d.</code> %s\n\n" % (count, mention(user))
-            text += "\nየታየ - %d ፤ አጠቃላይ - %d" % (count, User.query.count())
-            bot.send_message(user_id, text, reply_markup=btn)
-
-
 @bot.message_handler(state='message', content_types=util.content_type_media, chat_types=['private'])
 def got_message(message: types.Message):
-    app.app_context().push()
     user_id = message.chat.id
     msg_id = message.message_id
     btn = InlineKeyboardMarkup(row_width=2)
@@ -375,7 +263,7 @@ def on_got_message(call: types.CallbackQuery):
     bot.answer_callback_query(call.id)
     data = call.data.split(':')[-1]
     user_id = call.message.chat.id
-    user = User.query.filter_by(id=user_id)
+    user = session.query(User).filter_by(id=user_id)
     if data == 'add':
         bot.send_message(call.message.chat.id,
                          "የአዝራርህን ጽሁፍና ማያያዢያውን ክሰር ባለው መልኩ ይላኩ:\n\n<code>ሙከራ -> www.text.com</code>",
@@ -437,7 +325,9 @@ def send_to_users(message: types.Message):
         del markups["➕ ጨምር"], markups["☑ አልቋል"], markups['🗑 አጥፋ']
     except (IndexError, KeyError):
         pass
-    for user_id in db.users:
+
+    users = session.query(User.id).all()
+    for user_id in users:
         try:
             bot.copy_message(user_id, message.chat.id, message.message_id, reply_markup=util.quick_markup(markups))
         except:
@@ -446,7 +336,7 @@ def send_to_users(message: types.Message):
 
 
 def send_menu(user_id):
-    user = User.query.filter_by(id=user_id).first()
+    user = session.query(User).filter_by(id=user_id).first()
     if user.language == 'english':
         bot.send_message(user_id, "🏠 Main menu", reply_markup=main_button(user))
 
@@ -458,18 +348,17 @@ def send_menu(user_id):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('pagin'))
 def on_pagination(call: types.CallbackQuery):
-    app.app_context().push()
     bot.answer_callback_query(call.id)
     page = call.data.split("=")[-1]
     page = int(page)
-    users = User.query.order_by(User.since_member.desc())
+    users = session.query(User).order_by(User.since_member.desc())
     btn = pagination_button(page, users.count())
     text = ''
     count = page * 10 - 10
     for user in users.limit(10):
         count += 1
         text += "<i>#%d.</i> %s\n\n" % (count, mention(user))
-    text += "\nየታየ - %d ፤ አጠቃላይ - %d" % (count, User.query.count())
+    text += "\nየታየ - %d ፤ አጠቃላይ - %d" % (count, session.query(User).count())
     bot.edit_message_text(text, inline_message_id=call.inline_message_id, reply_markup=btn)
 
 
@@ -480,9 +369,8 @@ class UserState:
 
 @bot.message_handler(state=UserState.get_question, content_types=util.content_type_media)
 def get_question(message: types.Message):
-    app.app_context().push()
     user_id = message.chat.id
-    user = User.query.filter_by(id=user_id).first()
+    user = session.query(User).filter_by(id=user_id).first()
     if not message.text:
         bot.send_message(user_id, Text(user).question)
     else:
@@ -495,10 +383,9 @@ def get_question(message: types.Message):
 
 @bot.message_handler(state=UserState.get_subject)
 def get_subject(message: types.Message):
-    app.app_context().push()
     user_id = message.chat.id
     text = message.text
-    user = User.query.filter_by(id=user_id).first()
+    user = session.query(User).filter_by(id=user_id).first()
 
     if text not in subject_text:
         bot.send_message(user_id, "<code>የትምህርት አይነት ይምረጡ..</code>", reply_markup=subject_button())
@@ -511,11 +398,9 @@ def get_subject(message: types.Message):
         with bot.retrieve_data(user_id) as data:
             body = data['question']
 
-        question = Question(body=body, subject=subject, asker_id=user.id)
-        question.generate_link()
-        question.generate_browse_link()
-        db.session.add(question)
-        db.session.commit()
+        question = Question(body=body, subject=subject, asker=user)
+        session.add(question)
+        session.commit()
         send_question(user_id, question.id)
         send_menu(user_id)
         return bot.delete_state(user_id)
@@ -523,13 +408,12 @@ def get_subject(message: types.Message):
 
 @bot.callback_query_handler(lambda call: re.search(r'edit:(subject|question|enable|disable)', call.data))
 def __edit_question(call: types.CallbackQuery):
-    app.app_context().push()
     user_id = call.message.chat.id
     msg_id = call.message.message_id
     question_id = int(call.data.split(":")[-1])
     content = call.data.split(':')[-2]
-    question = Question.query.filter_by(id=question_id).first()
-    user = User.query.filter_by(id=user_id).first()
+    question = session.query(Question).filter_by(id=question_id).first()
+    user = session.query(User).filter_by(id=user_id).first()
     text = Text(user)
 
     bot.edit_message_reply_markup(user_id, msg_id)
@@ -542,7 +426,7 @@ def __edit_question(call: types.CallbackQuery):
 
     if content == 'question':
         bot.answer_callback_query(call.id)
-        bot.send_message(user_id, text.question, reply_markup=cancel(db.language(user_id)))
+        bot.send_message(user_id, text.question, reply_markup=cancel(user.language))
         state = 'edit_question'
 
     elif content == 'subject':
@@ -553,15 +437,15 @@ def __edit_question(call: types.CallbackQuery):
     elif content == 'enable':
         bot.answer_callback_query(call.id, "መመለስ ይቻላል።\n\nሁሉም ሰው ለርሶ ጥያቄ ለተመለሱት መልሶች ምላሽ መስጥት ይችላል።", show_alert=True)
         question.setting = QuestionSetting(reply=True)
-        db.session.add(question)
-        db.session.commit()
+        session.add(question)
+        session.commit()
         bot.edit_message_reply_markup(user_id, msg_id, reply_markup=on_question_button(question_id, True))
         return
 
     else:
-        question.setting = QuestionSetting(reply=False)
-        db.session.add(question)
-        db.session.commit()
+        question.setting.reply = False
+        session.add(question)
+        session.commit()
         bot.answer_callback_query(call.id, "መመለስ አይቻልም\n\nከርሶ ውጪ፤ ማንም ሰው ለርሶ ጥያቄ ለተመለሱት መልሶች ምላሽ መስጥት አልም።",
                                   show_alert=True)
         bot.edit_message_reply_markup(user_id, msg_id, reply_markup=on_question_button(question_id, False))
@@ -574,7 +458,6 @@ def __edit_question(call: types.CallbackQuery):
 
 @bot.message_handler(state='edit_question', content_types=util.content_type_media)
 def edit_question(message: types.Message):
-    app.app_context().push()
     user_id = message.chat.id
     with bot.retrieve_data(user_id) as data:
         question_id = data['question_id']
@@ -582,10 +465,10 @@ def edit_question(message: types.Message):
     if not message.text:
         bot.send_message(user_id, "እባኮ ጥያቄዎን በጽሁፍ መልክ ይላኩ።")
 
-    question = Question.query.filter_by(id=question_id).first()
+    question = session.query(Question).filter_by(id=question_id).first()
     question.body = util.escape(message.text)
-    db.session.add(question)
-    db.session.commit()
+    session.add(question)
+    session.commit()
     send_question(user_id, question_id)
     send_menu(user_id)
     return bot.delete_state(user_id)
@@ -593,7 +476,6 @@ def edit_question(message: types.Message):
 
 @bot.message_handler(state='edit_subject')
 def edit_subject(message: types.Message):
-    app.app_context().push()
     user_id = message.chat.id
     with bot.retrieve_data(user_id) as data:
         question_id = data['question_id']
@@ -607,18 +489,18 @@ def edit_subject(message: types.Message):
         if subject == "አማርኛ":
             subject = 'amharic'
 
-        question = Question.query.filter_by(id=question_id).first()
+        question = session.query(Question).filter_by(id=question_id).first()
         question.subject = subject
-        db.session.add(question)
-        db.session.commit()
+        session.add(question)
+        session.commit()
         send_question(user_id, question_id)
         send_menu(user_id)
         return bot.delete_state(user_id)
 
 
 def send_question(user_id, question_id):
-    new_question = Question.query.filter_by(id=question_id).first()
-    user = User.query.filter_by(id=user_id).first()
+    new_question = session.query(Question).filter_by(id=question_id).first()
+    user = session.query(User).filter_by(id=user_id).first()
     text = f"#{new_question.subject}\n\n<b>{new_question.body}</b>\n\nበ {mention(user)} የተጠይቀ\n\n"
     bot.send_message(user_id, text, reply_markup=on_question_button(question_id, new_question.reply))
     bot.send_message(user_id, "ጥያቄዎትን ተመልክተዉ እንደጨርሱ ለጥፍ የሚለዉን አዝራር ይጫኑ፤ ይህም በቀጥታ ማሰራጪያችን ላይ እንዲለጠፍ ይሆናል።",
@@ -627,16 +509,15 @@ def send_question(user_id, question_id):
 
 @bot.callback_query_handler(lambda call: re.search(r'cancel_question', call.data))
 def cancel_question(call: types.CallbackQuery):
-    app.app_context().push()
     user_id = call.message.chat.id
     message_id = call.message.message_id
     question_id = int(call.data.split(":")[-1])
-    question = Question.query.filter_by(id=question_id).first()
+    question = session.query(Question).filter_by(id=question_id).first()
 
     if question.status == 'previewing':
         question.status = 'cancelled'
-        db.session.add(question)
-        db.session.commit()
+        session.add(question)
+        session.commit()
         bot.answer_callback_query(call.id, "ተሰርዟል...")
         btn = InlineKeyboardMarkup([[InlineKeyboardButton("☑ እንደገና ለጥፍ", callback_data=f'post:{question_id}')]])
         bot.edit_message_reply_markup(inline_message_id=call.inline_message_id, reply_markup=btn)
@@ -647,15 +528,14 @@ def cancel_question(call: types.CallbackQuery):
 
 @bot.callback_query_handler(lambda call: call.data.startswith('post'))
 def post_question(call: types.CallbackQuery):
-    app.app_context().push()
     user_id = call.message.chat.id
     question_id = int(call.data.split(":")[-1])
-    question = db.question(question_id)
+    question = session.query(Question).filter_by(id=question_id)
     msg_id = call.message.message_id
     btns = InlineKeyboardMarkup(row_width=2)
     btns.add(
         InlineKeyboardButton("ምላሽ", url=DEEPLINK + question.hash_link),
-        InlineKeyboardButton("ዝርዝር(%d)" % question.answers.count(), url=DEEPLINK + question.browse_link),
+        InlineKeyboardButton("ዝርዝር (%d)" % len(question.answers), url=DEEPLINK + question.browse_link),
         InlineKeyboardButton("⚠️ ይጠቁሙ", callback_data='-report:%d' % question.id)
     )
 
@@ -663,8 +543,8 @@ def post_question(call: types.CallbackQuery):
     bot.answer_callback_query(call.id, "ጥያቄዎት ተለጥፏል።")
     question.status = 'posted'
     question.message_id = message.message_id
-    db.session.add(question)
-    db.session.commit()
+    session.add(question)
+    session.commit()
     channel = bot.get_chat(CHANNEL_ID)
     bot.edit_message_text("<a href='https://t.me/%s/%d'>ጥያቄዎት ተለጥፏል!!</a>" % (channel.username, message.message_id),
                           user_id, msg_id, disable_web_page_preview=True)
@@ -672,7 +552,6 @@ def post_question(call: types.CallbackQuery):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('-report'))
 def report_question(call: types.CallbackQuery):
-    app.app_context().push()
     bot.answer_callback_query(call.id, "ጥቆማው ለአስተዳዳሪዎች ተልኳል!!")
     question_id = int(call.data.split(":")[-1])
     msg = bot.send_message(OWNER_ID, "አንድ ጥያቄ ተጠቁሟል።")
@@ -683,31 +562,31 @@ def report_question(call: types.CallbackQuery):
 
 @bot.callback_query_handler(lambda call: call.data.startswith('del-question'))
 def del_question(call: types.CallbackQuery):
-    app.app_context().push()
     question_id = int(call.data.split(":")[-1])
-    question = Question.query.filter_by(id=question_id).first()
+    question = session.query(Question).filter_by(id=question_id).first()
+    closed = session.query(Question).filter_by(status='closed').count()
     bot.delete_message(CHANNEL_ID, question.message_id)
-    if question.asker.questions.filter_by(status='closed').first().count() >= 3:
-        bot.send_message(question.asker_id, "በተደጋጋሚ በለጠፉትና፤ ህግጋቶቻችንን በጣሱ ጥያቄዎቾ ምክኒያት እስከመጨረሻው ከዚህ ቦት ታግደዋል።")
-        question.asker.role = Role(name='banned')
+    if closed >= 3:
+        bot.send_photo(question.asker_id, open("images/ታግደዋል.png", 'b'),
+                       caption="<b>በተደጋጋሚ በለጠፉትና፤ ህግጋቶቻችንን በጣሱ ጥያቄዎቾ ምክኒያት እስከመጨረሻው ከዚህ ቦት ታግደዋል።</b>")
+        question.asker.role_id = 0
     else:
         bot.send_message(question.asker_id, "<b>‼️ ማስጠንቀቂያ</b>\n\n<a href='%s'>የርሶ ጥያቄ፤</a> በደረሰን ጥቆማ መሰረት ህግጋቶቻችንን "
                                         "ሰለጣሰ ከማሰራጫችን ላይ ጠፍቷል። እባኮን እንደዚህ አይነት ጥያቄ በድጋሚ አይለጥፉ።\n\nበተደጋጋሚ ይህን አድርገዉ "
                                         "ከተገኙ፤ ከቦቱ እስከ መጨረሺያዉ <b>ይታገዳሉ።</b>" % DEEPLINK+question.hash_link)
 
     question.status = 'closed'
-    db.session.add(question)
-    db.session.commit()
+    session.add(question)
+    session.commit()
     bot.edit_message_reply_markup(OWNER_ID, call.message.message_id)
 
 
 @bot.callback_query_handler(lambda call: call.data.startswith('edit_user'))
 def edit_user(call: types.CallbackQuery):
-    app.app_context().push()
     user_id = call.message.chat.id
     message_id = call.message.message_id
     content = call.data.split(":")[-1]
-    user = db.user(user_id)
+    user = session.query(User).filter_by(id=user_id).first()
 
     if content == 'name':
         bot.edit_message_reply_markup(user_id, message_id)
@@ -728,16 +607,15 @@ def edit_user(call: types.CallbackQuery):
 
 @bot.message_handler(state='edit_name')
 def edit_name(message: types.Message):
-    app.app_context().push()
     user_id = message.chat.id
     text = message.text
     regex = re.fullmatch(r"[a-zA-Zሀ-ፐ]+", text)
-    user = User.query.filter_by(id=user_id).first()
+    user = session.query(User).filter_by(id=user_id).first()
     if regex:
         name = regex.group()
         user.name = name
-        db.session.add(user)
-        db.session.commit()
+        session.add(user)
+        session.commit()
         if user.language == 'english':
             message.text = "👤 Profile"
             en_button(message)
@@ -754,16 +632,15 @@ def edit_name(message: types.Message):
 
 @bot.message_handler(state='edit_bio')
 def edit_bio(message: types.Message):
-    app.app_context().push()
     user_id = message.chat.id
     text = message.text
-    user = User.query.filter_by(id=user_id).first()
+    user = session.query(User).filter_by(id=user_id).first()
 
     if len(text) < 100:
         bio = util.escape(text)
         user.bio = bio
-        db.session.add(user)
-        db.session.commit()
+        session.add(user)
+        session.commit()
         if user.language == 'english':
             message.text = "👤 Profile"
             en_button(message)
@@ -780,11 +657,10 @@ def edit_bio(message: types.Message):
 
 @bot.callback_query_handler(lambda call: call.data.startswith("gender"))
 def edit_gender(call: types.CallbackQuery):
-    app.app_context().push()
     bot.answer_callback_query(call.id)
     user_id = call.message.chat.id
     message_id = call.message.message_id
-    user = User.query.filter_by(id=user_id).first()
+    user = session.query(User).filter_by(id=user_id).first()
     try:
         content = call.data.split(":")[-1]
         if content == 'back':
@@ -795,8 +671,8 @@ def edit_gender(call: types.CallbackQuery):
                 user.gender = ''
             else:
                 user.gender = content
-            db.session.add(user)
-            db.session.commit()
+            session.add(user)
+            session.commit()
             bot.edit_message_reply_markup(user_id, message_id, reply_markup=user_gender_button(user))
 
     except ApiTelegramException:
@@ -805,17 +681,17 @@ def edit_gender(call: types.CallbackQuery):
 
 @bot.callback_query_handler(lambda call: call.data.startswith('report'))
 def report_answer(call: types.CallbackQuery):
-    app.app_context().push()
     bot.answer_callback_query(call.id, '')
     user_id = call.from_user.id
     ans_id = call.data.split(":")[-1]
-    link = db.answer(ans_id).unique_link
-    bot.send_message(OWNER_ID, f"<a href='{DEEPLINK + link}'>አንድ ጥያቄ ተጠቁሟል</a>\nበ: {db.user(user_id).mention}")
+    link = session.query(Answer.hash_link).filter_by(id=ans_id).first()
+
+    user = session.query(User).filter_by(id=user_id).first()
+    bot.send_message(OWNER_ID, f"<a href='{DEEPLINK + link}'>አንድ ጥያቄ ተጠቁሟል</a>\nበ: {mention(user)}")
 
 
 @bot.callback_query_handler(lambda call: re.search(r"my_(all|more)_question", call.data))
 def show_more_user_question(call: types.CallbackQuery):
-    app.app_context().push()
     bot.answer_callback_query(call.id, "ጥያቄዎችህን በመጫን ላይ....")
     user_id = call.message.chat.id
     message_id = call.message.message_id
@@ -832,7 +708,6 @@ def show_more_user_question(call: types.CallbackQuery):
 
 @bot.callback_query_handler(lambda call: re.search(r"all_answer|more_answer", call.data))
 def show_more_answers(call: types.CallbackQuery):
-    app.app_context().push()
     bot.answer_callback_query(call.id, "መልሶችን በመጫን ላይ....")
     user_id = call.message.chat.id
     message_id = call.message.message_id
@@ -849,9 +724,9 @@ def show_more_answers(call: types.CallbackQuery):
 
 def show_user_questions(user_id, index=0, show_all=False):
     showed = False
-    user = User.query.filter_by(id=user_id).first()
+    user = session.query(User).filter_by(id=user_id).first()
     count = 0
-    for question in Question.query.filter_by(asker_id=user.id).all()[index:]:
+    for question in session.query(Question).filter_by(asker_id=user.id).all()[index:]:
         try:
             if not show_all and count == 10:
                 break
@@ -865,7 +740,7 @@ def show_user_questions(user_id, index=0, show_all=False):
                     [[InlineKeyboardButton("☑ አንደገና ለጥፍ", callback_data=f'post:{question.id}')]])
 
             elif status == 'posted':
-                btn = InlineKeyboardMarkup([[InlineKeyboardButton(f"ዝርዝር({question.answers.count()})",
+                btn = InlineKeyboardMarkup([[InlineKeyboardButton(f"ዝርዝር ({len(question.answers)})",
                                                                   callback_data=f'browse_answer:{question.id}'),
                                              InlineKeyboardButton("መልስ", callback_data=f"answer:{question.id}")]])
 
@@ -912,14 +787,14 @@ def show_answers(user_id, question_id, index=0, show_all=False):
     global answers_json
     count = 0
     showed = False
-    question = Question.query.filter_by(id=question_id).first()
-    me = User.query.filter_by(id=user_id).first()
-    for answer in Answer.query.filter_by(question_id=question_id).all()[index]:
+    question = session.query(Question).filter_by(id=question_id).first()
+    me = session.query(User).filter_by(id=user_id).first()
+    for answer in question.answers[index:]:
         try:
             if not show_all and count == 10:
                 break
 
-            asker = "#ጠያቂ" if answer.id == question.asker_id else ""
+            asker = "#ጠያቂ" if answer.from_user_id == question.asker_id else ""
             btn = InlineKeyboardMarkup()
             ls = []
 
@@ -965,9 +840,8 @@ def show_answers(user_id, question_id, index=0, show_all=False):
 
 @bot.message_handler(state='get_answer', content_types=util.content_type_media)
 def get_answer(message: types.Message):
-    app.app_context().push()
     user_id = message.chat.id
-    user = User.query.filter_by(id=user_id).first()
+    user = session.query(User).filter_by(id=user_id).first()
 
     with bot.retrieve_data(user_id) as data:
         question_id = data['question_id']
@@ -977,25 +851,23 @@ def get_answer(message: types.Message):
     if not message.text:
         bot.send_message(user_id, Text(user).answer, reply_markup=cancel(user.language))
 
-    answer = Answer(from_user_id=user_id, body=message.text, question_id=question_id, reply=reply_to)
-    answer.generate_link()
-    db.session.add(answer)
-    db.session.commit()
-    send_answer(user_id, db.max_answer_id, msg_id)
+    answer = Answer(from_user=user, body=message.text, question_id=question_id, reply=reply_to)
+    session.add(answer)
+    session.commit()
+    send_answer(user_id, session.query(Answer).count(), msg_id)
     bot.delete_state(user_id)
     send_menu(user_id)
 
 
 @bot.callback_query_handler(lambda call: re.search(r'edit:answer', call.data))
 def edit_answer(call: types.CallbackQuery):
-    app.app_context().push()
     bot.answer_callback_query(call.id)
     user_id = call.message.chat.id
     message_id = call.message.message_id
     answer_id, msg_id = call.data.split(':')[2:]
-    answer = Answer.query.filter_by(id=answer_id).first()
+    answer = session.query(Answer).filter_by(id=answer_id).first()
     bot.edit_message_reply_markup(user_id, message_id)
-    user = User.query.filter_by(id=user_id).first()
+    user = session.query(User).filter_by(id=user_id).first()
 
     if answer.status != 'previewing':
         return bot.send_message(user_id, "This answer cannot be edited!")
@@ -1011,32 +883,31 @@ def edit_answer(call: types.CallbackQuery):
 
 @bot.message_handler(state='edit_answer', content_types=util.content_type_media)
 def edit_answer(message: types.Message):
-    app.app_context().push()
     user_id = message.chat.id
-    user = User.query.filter_by(id=user_id).first()
+    user = session.query(User).filter_by(id=user_id).first()
 
     with bot.retrieve_data(user_id) as data:
         answer_id = data['answer_id']
         message_id = data.get('message_id', 0)
 
-    answer = Answer.query.filter_by(id=answer_id).first()
+    answer = session.query(Answer).filter_by(id=answer_id).first()
     if not message.text:
         bot.send_message(user_id, Text(user).answer, reply_markup=cancel(user.language))
 
     answer.body = message.text
-    db.session.add(answer)
-    db.session.commit()
+    session.add(answer)
+    session.commit()
     send_answer(user_id, answer_id, message_id)
     bot.delete_state(user_id)
     send_menu(user_id)
 
 
 def send_answer(user_id, answer_id, message_id=0):
-    answer = Answer.query.filter_by(id=answer_id).first()
+    answer = session.query(Answer).filter_by(id=answer_id).first()
     reply_to = answer.reply
-    user = User.query.filter_by(id=user_id).first()
+    user = session.query(User).filter_by(id=user_id).first()
     if reply_to:
-        the_answer = Answer.query.get(reply_to)
+        the_answer = session.query(Answer).filter_by(reply=reply_to).first()
         reply_text = f"↪ <b>In reply to</b>\n<i>\"{the_answer.body}\"</i>\n"
     else:
         reply_text = ''
@@ -1046,13 +917,12 @@ def send_answer(user_id, answer_id, message_id=0):
 
 @bot.callback_query_handler(lambda call: call.data.startswith('submit'))
 def submit_answer(call: types.CallbackQuery):
-    app.app_context().push()
     user_id = call.message.chat.id
     message_id = call.message.message_id
     answer_id, msg_id = call.data.split(':')[1:]
-    answer = Answer.query.filter_by(id=answer_id).first()
-    user = User.query.filter_by(id=user_id).first()
-    question = Question.query.get(answer.question_id)
+    answer = session.query(Answer).filter_by(id=answer_id).first()
+    user = session.query(User).filter_by(id=user_id).first()
+    question = session.query(Question).filter_by(id=answer.question_id).first()
 
     if answer.status != 'previewing':
         bot.edit_message_reply_markup(user_id, message_id)
@@ -1061,10 +931,9 @@ def submit_answer(call: types.CallbackQuery):
     else:
         bot.answer_callback_query(call.id, "ምላሾ ተልኳል!")
         bot.delete_message(user_id, message_id)
-        to_user = question.asker.id if not answer.reply else Answer.query.get(answer.reply).from_user_id
-
-        reply_msg_id = None if not answer.reply else Answer.query.get(answer.reply).message_id
-        asker = "#asker" if answer.from_user_id == question.asker.id else ""
+        to_user = question.asker.id if not answer.reply else session.query(Answer.from_user_id).filter_by(reply=answer.reply).first()
+        reply_msg_id = None if not answer.reply else session.query(Answer.message_id).filter_by(reply=answer.reply).first()
+        asker = "#ጠያቂ" if answer.from_user_id == question.asker.id else ""
         btn = InlineKeyboardMarkup()
         ls = []
 
@@ -1090,8 +959,8 @@ def submit_answer(call: types.CallbackQuery):
         except ApiTelegramException:
             pass
 
-        db.session.add(answer)
-        db.session.commit()
+        session.add(answer)
+        session.commit()
         btns = InlineKeyboardMarkup(row_width=2)
         btns.add(
             InlineKeyboardButton("ምላሽ", url=DEEPLINK + question.hash_link),
@@ -1103,7 +972,6 @@ def submit_answer(call: types.CallbackQuery):
 
 @bot.callback_query_handler(lambda call: call.data.startswith('browse_answer'))
 def browse_answer(call: types.CallbackQuery):
-    app.app_context().push()
     bot.answer_callback_query(call.id, "በመጫን ላይ....")
     user_id = call.message.chat.id
     question_id = call.data.split(":")[-1]
@@ -1112,11 +980,10 @@ def browse_answer(call: types.CallbackQuery):
 
 @bot.callback_query_handler(lambda call: call.data.startswith('answer'))
 def answer_to_question(call: types.CallbackQuery):
-    app.app_context().push()
     bot.answer_callback_query(call.id)
     user_id = call.message.chat.id
     question_id = int(call.data.split(':')[-1])
-    user = db.user(user_id)
+    user = session.query(User).filter_by(id=user_id).first()
     bot.send_message(user_id, Text(user).answer, reply_markup=cancel(user.language))
     bot.set_state(user_id, 'get_answer')
 
@@ -1126,12 +993,11 @@ def answer_to_question(call: types.CallbackQuery):
 
 @bot.callback_query_handler(lambda call: call.data.startswith('reply_answer'))
 def reply_answer(call: types.CallbackQuery):
-    app.app_context().push()
     bot.answer_callback_query(call.id)
     user_id = call.message.chat.id
-    user = User.query.filter_by(id=user_id).first()
+    user = session.query(User).filter_by(id=user_id).first()
     answer_id = call.data.split(":")[-1]
-    answer = Answer.query.filter_by(id=answer_id).first()
+    answer = session.query(Answer).filter_by(id=answer_id).first()
 
     bot.send_message(user_id, Text(user).answer, reply_markup=cancel(user.language))
     bot.set_state(user_id, 'get_answer')
@@ -1144,12 +1010,11 @@ def reply_answer(call: types.CallbackQuery):
 
 @bot.callback_query_handler(lambda call: call.data.startswith("user"))
 def get_user(call: types.CallbackQuery):
-    app.app_context().push()
     user_id = call.message.chat.id
-    current_user = User.query.filter_by(id=user_id).first()
+    current_user = session.query(User).filter_by(id=user_id).first()
     content, usr_id = call.data.split(':')[1:]
     msg_id = call.message.message_id
-    user = User.query.get(usr_id)
+    user = session.query(User).filter_by(id=usr_id)
 
     if content == "chat":
         bot.answer_callback_query(call.id)
@@ -1172,7 +1037,7 @@ def get_user(call: types.CallbackQuery):
             if current_user.can(Permission.BAN):
                 bot.answer_callback_query(call.id, 'Banned!')
                 user.role.reset_permissions()
-                db.session.add(user)
+                session.add(user)
                 bot.ban_chat_member(CHANNEL_ID, usr_id)
 
             else:
@@ -1183,7 +1048,7 @@ def get_user(call: types.CallbackQuery):
                 if content == 'unban' and user.role.name == 'banned':
                     bot.answer_callback_query(call.id, 'Unbanned!')
                     user.role.return_permission()
-                    db.session.add(user)
+                    session.add(user)
                     bot.unban_chat_member(CHANNEL_ID, usr_id)
                 else:
                     bot.answer_callback_query(call.id, f'This user is already')
@@ -1198,20 +1063,19 @@ def get_user(call: types.CallbackQuery):
 
         else:
             bot.answer_callback_query(call.id, 'መረጃዎችን በመሰብሰብ ላይ.....')
-            mention = f"<a href='tg://user?id={int(user.id)}'>{int(user.id)}</a>"
-            bot.send_message(user_id, f'<b>ስም:</b> {user.name}\n<b>ID:</b> {user.id}\n\n{mention}')
-        db.session.commit()
+            _mention = f"<a href='tg://user?id={int(user.id)}'>{int(user.id)}</a>"
+            bot.send_message(user_id, f'<b>ስም:</b> {user.name}\n<b>ID:</b> {user.id}\n\n{_mention}')
+        session.commit()
         return bot.edit_message_reply_markup(user_id, msg_id, reply_markup=on_user_profile(user, current_user))
 
 
 @bot.message_handler(state='chat', content_types=util.content_type_media)
 def chat(message: types):
-    app.app_context().push()
     user_id = message.from_user.id
-    _from = User.query.filter_by(id=user_id).first()
+    _from = session.query(User).filter_by(id=user_id).first()
     with bot.retrieve_data(user_id) as data:
         to_user = data['to_user']
-    _to = User.query.get(to_user)
+    _to = session.query(User).filter_by(id=to_user).first()
     if not message.text:
         bot.send_message(user_id, 'Text is required!')
     else:
@@ -1227,12 +1091,11 @@ def chat(message: types):
 
 @bot.message_handler(state='admin_message', content_types=['text'])
 def admin_message(message: types.Message):
-    app.app_context().push()
     user_id = message.from_user.id
     with bot.retrieve_data(user_id) as data:
         to_user = data['to_user']
 
-    _to = User.query.get(to_user)
+    _to = session.query(User.name).filter_by(id=to_user)
     try:
         bot.send_message(to_user, "#አስተዳዳሪ\n\n%s" % message.text)
     except ApiTelegramException:
@@ -1244,14 +1107,13 @@ def admin_message(message: types.Message):
 
 @bot.message_handler(state='feedback', content_types=util.content_type_media)
 def get_user_feedback(message: types.Message):
-    app.app_context().push()
     user_id = message.from_user.id
-    user = User.query.filter_by(id=user_id).first()
+    user = session.query(User).filter_by(id=user_id).first()
     if not message.text:
         bot.send_message(user_id, 'Text is required!')
     else:
         bot.send_message(OWNER_ID, f"#አስታየት\n<b>{util.escape(message.text)}</b>\n\nከ {mention(user)}",
-                         reply_markup=on_user_profile(user, User.query.get(OWNER_ID)))
+                         reply_markup=on_user_profile(user, session.query(User).filter_by(id=OWNER_ID)))
         if user.language == 'english':
             bot.send_message(user_id, 'Thank you for your feedback!')
         else:
@@ -1263,8 +1125,8 @@ def get_user_feedback(message: types.Message):
 @bot.message_handler(commands=['get'], chat_id=[OWNER_ID])
 def get(message: types.Message):
     text = message.text.split()
-    user = User.get(text[-1])
-    if user.status is not None:
+    user = session.query(User).filter_by(id=text[-1]).first()
+    if user is not None:
         message.text = "/start {}".format(user.link)
         __start(message)
     else:
@@ -1281,21 +1143,100 @@ def off(message):
     bot.reply_to(message, 'Done!')
 
 
-@app.route('/')
-def index():
-    bot.set_webhook(WEBHOOK_URL + "/bot" + TOKEN)
-    return '!', 200
+@bot.message_handler(func=lambda message: message.text in main_text_en, language='english', chat_types=['private'])
+def en_button(message: types.Message):
+    user_id = message.chat.id
+    text = message.text
+    user = session.query(User).filter_by(id=user_id).first()
+    _text = Text(user)
+    if text == "📝 Ask Question":
+        bot.send_message(user_id, _text.question, reply_markup=cancel('english'))
+        bot.set_state(user_id, UserState.get_question)
+
+    elif text == "🔅 My Questions":
+        show_user_questions(user_id)
+
+    elif text == "👤 Profile":
+        bot.send_message(user_id, _text.profile, reply_markup=user_button(user))
+
+    elif text == "🌐 Language":
+        bot.send_message(user_id, "<i>Select your langauge / ቋንቋ ይምረጡ</i>", reply_markup=lang_button())
+
+    elif text == "💭 Feedback":
+        bot.send_message(user_id, "Send us your feedback with text", reply_markup=cancel("english"))
+        bot.set_state(user_id, 'feedback')
+
+    elif text == "📃 Rules":
+        rules = open("rules/enrules.txt")
+        bot.send_message(user_id, rules.read())
+        rules.close()
+
+    elif text == '🎈 Contact':
+        bot.send_message(user_id, "<b>✔ Contact the developer\n\n👨‍💻 @Natiprado</b>")
 
 
-@app.route('/bot' + TOKEN, methods=['POST'])
-def webhook():
-    data = request.get_data().decode('utf-8')
-    update = types.Update.de_json(data)
-    bot.process_new_updates([update])
-    return "OK", 200
+@bot.message_handler(func=lambda message: message.text in main_text_am, language='amharic', chat_types=['private'])
+def am_button(message: types.Message):
+    user_id = message.chat.id
+    text = message.text
+    user = session.query(User).filter_by(id=user_id).first()
+    _text = Text(user)
+
+    if text == "📝 ጠይቅ":
+        bot.send_message(user_id, _text.question, reply_markup=cancel('amharic'))
+        bot.set_state(user_id, UserState.get_question)
+
+    elif text == "🔅 የኔ ጥያቄዎች":
+        show_user_questions(user_id)
+
+    elif text == "👤 መግለጫ":
+        bot.send_message(user_id, _text.profile, reply_markup=user_button(user))
+
+    elif text == "🌐 ቋንቋ":
+        bot.send_message(user_id, "<i>Select your langauge / ቋንቋ ይምረጡ</i>", reply_markup=lang_button())
+
+    elif text == "💭 አስታየት":
+        bot.send_message(user_id, "ያሎትን አስታየት በጽሑፍ ያድርሱን።", reply_markup=cancel("amharic"))
+        bot.set_state(user_id, 'feedback')
+
+    elif text == "📃 ህግጋት":
+        rules = open("rules/amrules.txt", 'r')
+        bot.send_message(user_id, rules.read())
+        rules.close()
+
+    elif text == "🎈 አግኝ":
+        bot.send_message(user_id, "<b>✔ የቦቱን መስራች ያግኙ\n\n👨‍💻 @Natiprado</b>")
 
 
-bot.add_custom_filter(LanguageFilter(app))
+@bot.message_handler(func=lambda message: message.text in ["📝 መልዕክት ላክ", "📊 ቆጠራ"], chat_types=['private'])
+def admin_buttons(message: types.Message):
+    user_id = message.chat.id
+    user = session.query(User).filter_by(id=user_id).first()
+
+    if user.role.name == 'user':
+        return
+
+    if message.text == '📝 መልዕክት ላክ':
+        if user_id == OWNER_ID or user.can(Permission.SEND):
+            bot.send_message(user_id, "✳️አዲስ መልዕክት ይጻፉ.\n\nአንዲሁም ከለሎች ማሰራጫ ወይም ማውጊያ ወደዚህ ሊልኩ ይችላሉ።",
+                             reply_markup=cancel(user.language))
+            bot.set_state(user_id, 'message')
+            markups.clear()
+
+    else:
+        if user.can(Permission.SEE):
+            users = session.query(User).order_by(User.since_member.desc())
+            btn = pagination_button(1, users.count())
+            text = ''
+            count = 0
+            for user in users.limit(10):
+                count += 1
+                text += "<code>#%d.</code> %s\n\n" % (count, mention(user))
+            text += "\nየታየ - %d ፤ አጠቃላይ - %d" % (count, session.query(User).count())
+            bot.send_message(user_id, text, reply_markup=btn)
+
+
+bot.add_custom_filter(LanguageFilter())
 bot.add_custom_filter(Deeplink())
 bot.add_custom_filter(StateFilter(bot))
 bot.add_custom_filter(ChatFilter())
