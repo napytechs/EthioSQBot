@@ -6,7 +6,6 @@ from .model import User, session
 
 class LanguageFilter(SimpleCustomFilter):
     key = 'language'
-    app = None
 
     @classmethod
     def check(cls, message):
@@ -31,3 +30,7 @@ def parse_time(time_):
     if new != "አሁን":
         new = "ከ" + new
     return new
+
+
+def smart_subject(subject):
+    return "#" + subject.split("|")[0][2:].strip().replace(" ", "_")

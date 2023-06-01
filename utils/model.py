@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session, relationship
 from datetime import datetime
 import os
 
-engine = create_engine(os.getenv("DATABASE_URL"))
+engine = create_engine("mysql://root:natanim@localhost/testBot")
 session = Session(bind=engine)
 
 
