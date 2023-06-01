@@ -9,7 +9,6 @@ from utils import filters
 from utils.filters import Deeplink, LanguageFilter
 from utils.text import Text
 from button.keyboard import *
-from app_setup import create_app, db
 from utils.model import User, Role, Answer, Question, Permission, QuestionSetting, session
 
 apihelper.ENABLE_MIDDLEWARE = True
@@ -75,7 +74,6 @@ def start_message(message: types.Message):
     _user = session.query(User).filter_by(id=user_id).first()
     if _user is None:
         new_user = User(id=user_id)
-        new_user.generate_link()
         session.add(new_user)
         session.commit()
         return bot.send_message(user_id, "<i>Select your langauge / ቋንቋ ይምረጡ</i>", reply_markup=lang_button(True))
@@ -362,6 +360,75 @@ def on_pagination(call: types.CallbackQuery):
     bot.edit_message_text(text, inline_message_id=call.inline_message_id, reply_markup=btn)
 
 
+@bot.message_handler(func=lambda message: message.text in main_text_en, language='english', chat_types=['private'])
+def en_button(message: types.Message):
+    user_id = message.chat.id
+    text = message.text
+    user = session.query(User).filter_by(id=user_id).first()
+    _text = Text(user)
+    if text == "📝 Ask Question":
+        bot.send_message(user_id, _text.question, reply_markup=cancel('english'))
+        bot.set_state(user_id, UserState.get_question)
+
+    elif text == "🔅 My Questions":
+        show_user_questions(user_id)
+
+    elif text == "👤 Profile":
+        bot.send_message(user_id, _text.profile, reply_markup=user_button(user))
+
+    elif text == "🌐 Language":
+        bot.send_message(user_id, "<i>Select your langauge / ቋንቋ ይምረጡ</i>", reply_markup=lang_button())
+
+    elif text == "💭 Feedback":
+        bot.send_message(user_id, "Send us your feedback with text", reply_markup=cancel("english"))
+        bot.set_state(user_id, 'feedback')
+
+    elif text == "📃 Rules":
+        rules = open("rules/enrules.txt")
+        bot.send_message(user_id, rules.read())
+        rules.close()
+
+    elif text == '🎈 Contact':
+        bot.send_message(user_id, "<b>✔ Contact the developer\n\n👨‍💻 @Natiprado</b>")
+
+
+@bot.message_handler(func=lambda message: message.text in main_text_am, language='amharic', chat_types=['private'])
+def am_button(message: types.Message):
+    """
+    ይህ ተግባር፤ ሁሉንም የአማርኛ አዝራሮች ለመሰብሰብና ምላሽ ለመስጠት ይረዳል።
+    """
+
+    user_id = message.chat.id
+    text = message.text
+    user = session.query(User).filter_by(id=user_id).first()
+    _text = Text(user)
+
+    if text == "📝 ጠይቅ":
+        bot.send_message(user_id, _text.question, reply_markup=cancel('amharic'))
+        bot.set_state(user_id, UserState.get_question)
+
+    elif text == "🔅 የኔ ጥያቄዎች":
+        show_user_questions(user_id)
+
+    elif text == "👤 መግለጫ":
+        bot.send_message(user_id, _text.profile, reply_markup=user_button(user))
+
+    elif text == "🌐 ቋንቋ":
+        bot.send_message(user_id, "<i>Select your langauge / ቋንቋ ይምረጡ</i>", reply_markup=lang_button())
+
+    elif text == "💭 አስታየት":
+        bot.send_message(user_id, "ያሎትን አስታየት በጽሑፍ ያድርሱን።", reply_markup=cancel("amharic"))
+        bot.set_state(user_id, 'feedback')
+
+    elif text == "📃 ህግጋት":
+        rules = open("rules/amrules.txt", 'r', encoding='utf-8')
+        bot.send_message(user_id, rules.read())
+        rules.close()
+
+    elif text == "🎈 አግኝ":
+        bot.send_message(user_id, "<b>✔ የቦቱን መስራች ያግኙ\n\n👨‍💻 @Natiprado</b>")
+
+
 class UserState:
     get_question = 'get_question'
     get_subject = 'get_subject'
@@ -374,7 +441,7 @@ def get_question(message: types.Message):
     if not message.text:
         bot.send_message(user_id, Text(user).question)
     else:
-        bot.send_message(user_id, "<code>የጥያቄዎን ትምህርት አይነት ይምረጡ..</code>", reply_markup=subject_button())
+        bot.send_message(user_id, "<code>ለጥያቄዎ ርዕስ ይምረጡ....\n\nየትኛዉን መምረጥ እንዳለቦት ግራከገቦት፣ `ጠቅላላ እውቀት` ሚለውን ይጫኑ</code>", reply_markup=subject_button())
     bot.set_state(user_id, UserState.get_subject)
     body = util.escape(message.text)
     with bot.retrieve_data(user_id) as data:
@@ -388,13 +455,10 @@ def get_subject(message: types.Message):
     user = session.query(User).filter_by(id=user_id).first()
 
     if text not in subject_text:
-        bot.send_message(user_id, "<code>የትምህርት አይነት ይምረጡ..</code>", reply_markup=subject_button())
-
+        bot.send_message(user_id, "<code>ለጥያቄዎ ርዕስ ይምረጡ....\n\nየትኛዉን መምረጥ እንዳለቦት ግራከገቦት፣ `ጠቅላላ እውቀት` ሚለውን ይጫኑ</code>",
+                         reply_markup=subject_button())
     else:
-        subject = text[2:].strip().replace(" ", "_").lower()
-        if subject == "አማርኛ":
-            subject = 'amharic'
-
+        subject = filters.smart_subject(text)
         with bot.retrieve_data(user_id) as data:
             body = data['question']
 
@@ -431,7 +495,7 @@ def __edit_question(call: types.CallbackQuery):
 
     elif content == 'subject':
         bot.answer_callback_query(call.id)
-        bot.send_message(user_id, "<code>የጥያቄዎን ትምህርት አይነት ይምረጡ..</code>", reply_markup=subject_button())
+        bot.send_message(user_id, "<code>ለጥያቄዎ ርዕስ ይምረጡ...\n\nየትኛዉን መምረጥ እንዳለቦት ግራከገቦት፣ `ጠቅላላ እውቀት` ሚለውን ይጫኑ</code>", reply_markup=subject_button())
         state = 'edit_subject'
 
     elif content == 'enable':
@@ -482,7 +546,7 @@ def edit_subject(message: types.Message):
 
     text = message.text
     if text not in subject_text:
-        bot.send_message(user_id, "<code>የጥያቄዎን ትምህርት አይነት ይምረጡ....</code>", reply_markup=subject_button())
+        bot.send_message(user_id, "<code>ለጥያቄዎ ርዕስ ይምረጡ...\n\nየትኛዉን መምረጥ እንዳለቦት ግራከገቦት፣ `ጠቅላላ እውቀት` ሚለውን ይጫኑ</code>", reply_markup=subject_button())
 
     else:
         subject = text[2:].strip().replace(" ", "_").lower()
@@ -569,7 +633,7 @@ def del_question(call: types.CallbackQuery):
     if closed >= 3:
         bot.send_photo(question.asker_id, open("images/ታግደዋል.png", 'b'),
                        caption="<b>በተደጋጋሚ በለጠፉትና፤ ህግጋቶቻችንን በጣሱ ጥያቄዎቾ ምክኒያት እስከመጨረሻው ከዚህ ቦት ታግደዋል።</b>")
-        question.asker.role_id = 0
+        question.asker.role = session.query(Role).filter_by(name='banned').first()
     else:
         bot.send_message(question.asker_id, "<b>‼️ ማስጠንቀቂያ</b>\n\n<a href='%s'>የርሶ ጥያቄ፤</a> በደረሰን ጥቆማ መሰረት ህግጋቶቻችንን "
                                         "ሰለጣሰ ከማሰራጫችን ላይ ጠፍቷል። እባኮን እንደዚህ አይነት ጥያቄ በድጋሚ አይለጥፉ።\n\nበተደጋጋሚ ይህን አድርገዉ "
@@ -769,8 +833,8 @@ def show_user_questions(user_id, index=0, show_all=False):
             bot.send_message(user_id, "ይቅርታ እስካሁን ምንም የጠየቁት ጥያቄ የለም ።", reply_markup=ask_q)
 
     else:
-        text = f'Showed - {index}, Total - {user.questions.count()}' if user.language == 'en' else f"የታየ - {index} ፣ አጠቃላይ - {user.questions.count()}"
-        if user.count_question > index:
+        text = f'Showed - {index}, Total - {len(user.questions)}' if user.language == 'en' else f"የታየ - {index} ፣ አጠቃላይ - {len(user.questions)}"
+        if len(user.questions) > index:
             btn = InlineKeyboardMarkup([[InlineKeyboardButton("Show more" if user.language == 'en' else "ተጨማሪ አሳይ",
                                                               callback_data=f'my_more_question:{index}'),
                                          InlineKeyboardButton("Show all" if user.language == 'en' else "ሁሉንም አሳይ",
@@ -822,8 +886,8 @@ def show_answers(user_id, question_id, index=0, show_all=False):
 
     if showed:
         text = f'Showed - {index}, Total - {question.browse}' if me.language == 'english' \
-            else f"የታየ - {index} ፣ አጠቃላይ - {question.answers.count()}"
-        if question.answers.count() > index:
+            else f"የታየ - {index} ፣ አጠቃላይ - {len(question.answers)}"
+        if len(question.answers) > index:
             btn = InlineKeyboardMarkup([[InlineKeyboardButton("Show more" if me.language == 'english' else "ተጨማሪ አሳይ",
                                                               callback_data=f'more_answer:{question_id}:{index}'),
                                          InlineKeyboardButton("Show all" if me.language == 'english' else "ሁሉንም አሳይ",
@@ -964,7 +1028,7 @@ def submit_answer(call: types.CallbackQuery):
         btns = InlineKeyboardMarkup(row_width=2)
         btns.add(
             InlineKeyboardButton("ምላሽ", url=DEEPLINK + question.hash_link),
-            InlineKeyboardButton("ዝርዝር(%d)" % question.answers.count(), url=DEEPLINK + question.browse_link),
+            InlineKeyboardButton("ዝርዝር(%d)" % len(question.answers), url=DEEPLINK + question.browse_link),
             InlineKeyboardButton("ይጠቁሙ", url=DEEPLINK + "report" + question.hash_link)
         )
         bot.edit_message_reply_markup(CHANNEL_ID, question.message_id, reply_markup=btns)
@@ -1036,7 +1100,7 @@ def get_user(call: types.CallbackQuery):
         if content == 'ban':
             if current_user.can(Permission.BAN):
                 bot.answer_callback_query(call.id, 'Banned!')
-                user.role.reset_permissions()
+                user.role = session.query(Role).filter_by(name='banned').first()
                 session.add(user)
                 bot.ban_chat_member(CHANNEL_ID, usr_id)
 
@@ -1143,71 +1207,6 @@ def off(message):
     bot.reply_to(message, 'Done!')
 
 
-@bot.message_handler(func=lambda message: message.text in main_text_en, language='english', chat_types=['private'])
-def en_button(message: types.Message):
-    user_id = message.chat.id
-    text = message.text
-    user = session.query(User).filter_by(id=user_id).first()
-    _text = Text(user)
-    if text == "📝 Ask Question":
-        bot.send_message(user_id, _text.question, reply_markup=cancel('english'))
-        bot.set_state(user_id, UserState.get_question)
-
-    elif text == "🔅 My Questions":
-        show_user_questions(user_id)
-
-    elif text == "👤 Profile":
-        bot.send_message(user_id, _text.profile, reply_markup=user_button(user))
-
-    elif text == "🌐 Language":
-        bot.send_message(user_id, "<i>Select your langauge / ቋንቋ ይምረጡ</i>", reply_markup=lang_button())
-
-    elif text == "💭 Feedback":
-        bot.send_message(user_id, "Send us your feedback with text", reply_markup=cancel("english"))
-        bot.set_state(user_id, 'feedback')
-
-    elif text == "📃 Rules":
-        rules = open("rules/enrules.txt")
-        bot.send_message(user_id, rules.read())
-        rules.close()
-
-    elif text == '🎈 Contact':
-        bot.send_message(user_id, "<b>✔ Contact the developer\n\n👨‍💻 @Natiprado</b>")
-
-
-@bot.message_handler(func=lambda message: message.text in main_text_am, language='amharic', chat_types=['private'])
-def am_button(message: types.Message):
-    user_id = message.chat.id
-    text = message.text
-    user = session.query(User).filter_by(id=user_id).first()
-    _text = Text(user)
-
-    if text == "📝 ጠይቅ":
-        bot.send_message(user_id, _text.question, reply_markup=cancel('amharic'))
-        bot.set_state(user_id, UserState.get_question)
-
-    elif text == "🔅 የኔ ጥያቄዎች":
-        show_user_questions(user_id)
-
-    elif text == "👤 መግለጫ":
-        bot.send_message(user_id, _text.profile, reply_markup=user_button(user))
-
-    elif text == "🌐 ቋንቋ":
-        bot.send_message(user_id, "<i>Select your langauge / ቋንቋ ይምረጡ</i>", reply_markup=lang_button())
-
-    elif text == "💭 አስታየት":
-        bot.send_message(user_id, "ያሎትን አስታየት በጽሑፍ ያድርሱን።", reply_markup=cancel("amharic"))
-        bot.set_state(user_id, 'feedback')
-
-    elif text == "📃 ህግጋት":
-        rules = open("rules/amrules.txt", 'r')
-        bot.send_message(user_id, rules.read())
-        rules.close()
-
-    elif text == "🎈 አግኝ":
-        bot.send_message(user_id, "<b>✔ የቦቱን መስራች ያግኙ\n\n👨‍💻 @Natiprado</b>")
-
-
 @bot.message_handler(func=lambda message: message.text in ["📝 መልዕክት ላክ", "📊 ቆጠራ"], chat_types=['private'])
 def admin_buttons(message: types.Message):
     user_id = message.chat.id
@@ -1232,7 +1231,7 @@ def admin_buttons(message: types.Message):
             for user in users.limit(10):
                 count += 1
                 text += "<code>#%d.</code> %s\n\n" % (count, mention(user))
-            text += "\nየታየ - %d ፤ አጠቃላይ - %d" % (count, session.query(User).count())
+            text += "\nየታየ - %d ፤ አጠቃላይ - %d" % (count,  users.count())
             bot.send_message(user_id, text, reply_markup=btn)
 
 
