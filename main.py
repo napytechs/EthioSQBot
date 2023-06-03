@@ -387,7 +387,7 @@ def get_question(message: types.Message):
     if not message.text:
         bot.send_message(user_id, Text(user).question)
     else:
-        bot.send_message(user_id, "<code>ለጥያቄዎ ርዕስ ይምረጡ....\n\nየትኛዉን መምረጥ እንዳለቦት ግራከገቦት፣ `ጠቅላላ እውቀት` ሚለውን ይጫኑ</code>", reply_markup=subject_button())
+        bot.send_message(user_id, "<code>ለጥያቄዎ ርዕስ ይምረጡ....\n\nየትኛዉን መምረጥ እንዳለቦት ግራከገቦት፣ `ጠቅላላ እውቀት` ሚለውን ይጫኑ</code>", reply_markup=subject_button(user))
     bot.set_state(user_id, UserState.get_subject)
     body = util.escape(message.text)
     with bot.retrieve_data(user_id) as data:
@@ -402,7 +402,7 @@ def get_subject(message: types.Message):
 
     if text not in subject_text:
         bot.send_message(user_id, "<code>ለጥያቄዎ ርዕስ ይምረጡ....\n\nየትኛዉን መምረጥ እንዳለቦት ግራከገቦት፣ `ጠቅላላ እውቀት` ሚለውን ይጫኑ</code>",
-                         reply_markup=subject_button())
+                         reply_markup=subject_button(user))
     else:
         subject = filters.smart_subject(text)
         with bot.retrieve_data(user_id) as data:
