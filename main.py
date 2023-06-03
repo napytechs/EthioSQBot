@@ -10,7 +10,10 @@ from utils.filters import Deeplink, LanguageFilter
 from utils.text import Text
 from button.keyboard import *
 from utils.model import User, Role, Answer, Question, Permission, QuestionSetting, session
+import logging
 
+logger = logging.getLogger("TeleBot")
+logger.setLevel(logging.INFO)
 apihelper.ENABLE_MIDDLEWARE = True
 TOKEN = os.getenv("TOKEN")
 bot = TeleBot(TOKEN, parse_mode='html')
