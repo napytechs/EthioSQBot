@@ -769,7 +769,7 @@ def show_user_questions(user_id, index=0, show_all=False):
 
     if not showed:
         ask_q = types.InlineKeyboardMarkup()
-        btn = types.InlineKeyboardButton("Ask" if user.language == 'en' else 'ጠይቅ', callback_data='ask_question')
+        btn = types.InlineKeyboardButton("Ask" if user.language == 'english' else 'ጠይቅ', callback_data='ask_question')
         ask_q.add(btn)
 
         if user.language == 'english':
