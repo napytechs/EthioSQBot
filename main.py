@@ -114,7 +114,7 @@ def __start(message: types.Message):
         return start_message(message)
 
     if user is not None:
-        text = Text(current_user)
+        text = Text(user)
         if user.id == user_id:
             if user.language == 'english':
                 message.text = "👤 Profile"
