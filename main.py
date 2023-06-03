@@ -1151,7 +1151,7 @@ def admin_buttons(message: types.Message):
     if user.role.name == 'user':
         return
 
-    if message.text == '📝 መልዕክት ላክ':
+    if message.text == "📝 መልዕክት ላክ":
         if user_id == OWNER_ID or user.can(Permission.SEND):
             bot.send_message(user_id, "✳️አዲስ መልዕክት ይጻፉ.\n\nአንዲሁም ከለሎች ማሰራጫ ወይም ማውጊያ ወደዚህ ሊልኩ ይችላሉ።",
                              reply_markup=cancel(user.language))
