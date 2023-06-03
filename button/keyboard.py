@@ -24,7 +24,7 @@ def main_button(user):
     btn = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     ad = []
     if user.can(Permission.SEND):
-        ad.append(KeyboardButton("📝 ምልዕክት ላክ"))
+        ad.append(KeyboardButton("📝 መልዕክት ላክ"))
     if user.can(Permission.SEE):
         ad.append("📊 ቆጠራ")
     btn.add(*ad, row_width=3)
