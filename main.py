@@ -1263,6 +1263,6 @@ bot.add_custom_filter(ChatFilter())
 
 if __name__ == "__main__":
     print("Bot started polling")
-    app.run()
+    bot.infinity_polling()
 
 
