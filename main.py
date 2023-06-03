@@ -1113,7 +1113,7 @@ def get_user_feedback(message: types.Message):
         bot.send_message(user_id, 'Text is required!')
     else:
         bot.send_message(OWNER_ID, f"#አስታየት\n<b>{util.escape(message.text)}</b>\n\nከ {mention(user)}",
-                         reply_markup=on_user_profile(user, session.query(User).filter_by(id=OWNER_ID)))
+                         reply_markup=on_user_profile(user, session.query(User).filter_by(id=OWNER_ID).first()))
         if user.language == 'english':
             bot.send_message(user_id, 'Thank you for your feedback!')
         else:
