@@ -167,7 +167,7 @@ def update_lang(call: types.CallbackQuery):
     user = session.query(User).filter_by(id=user_id).first()
 
     if code.endswith('f'):
-        code = code.removesuffix('f')
+        code = code.replcace('f', '')
         _code = 'amharic' if code == 'am' else 'english'
         user.language = _code
         session.add(user)
