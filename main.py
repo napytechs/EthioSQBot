@@ -577,7 +577,7 @@ def del_question(call: types.CallbackQuery):
     closed = session.query(Question).filter_by(status='closed').count()
     bot.delete_message(CHANNEL_ID, question.message_id)
     if closed >= 3:
-        bot.send_photo(question.asker_id, open("images/ታግደዋል.png", 'b'),
+        bot.send_photo(question.asker_id, open("images/ታግደዋል.png", 'rb'),
                        caption="<b>በተደጋጋሚ በለጠፉትና፤ ህግጋቶቻችንን በጣሱ ጥያቄዎቾ ምክኒያት እስከመጨረሻው ከዚህ ቦት ታግደዋል።</b>")
         question.asker.role = session.query(Role).filter_by(name='banned').first()
     else:
