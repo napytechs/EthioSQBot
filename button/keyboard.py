@@ -86,12 +86,12 @@ def on_question_button(user, question_id, reply=True):
         if user.language == 'english':
             enb = "Enable Reply"
         else:
-            enb = ""
+            enb = "ምልልስ አብራ"
     else:
         if user.language == 'english':
             enb = "Disable Reply"
         else:
-            enb = ""
+            enb = "ምልልስ አጥፋ"
     edit = {
         "📝 Edit question" if user.language == 'english' else "📝 አርትዕ ጥያቄ": {'callback_data': f'edit:question:{question_id}'},
         '📖 Edit Subject' if user.language == 'english' else "📖 አርትዕ ትምህርት": {'callback_data': f'edit:subject:{question_id}'},
@@ -132,12 +132,12 @@ def on_user_profile(the_user, user):
     btn = InlineKeyboardMarkup()
 
     if the_user.id != user.id:
-        btn.add(InlineKeyboardButton("📝 መልዕክት ላክ", callback_data=f'user:chat:{the_user.user_id}'))
+        btn.add(InlineKeyboardButton("📝 መልዕክት ላክ", callback_data=f'user:chat:{the_user.id}'))
 
     if the_user.role.name == "admin":
         return btn
 
-    ban = InlineKeyboardButton("✅ አታግድ" if the_user.status == 'banned' else "🚷 አግድ",
+    ban = InlineKeyboardButton("✅ አታግድ" if the_user.role.name == 'banned' else "🚷 አግድ",
                                callback_data=f'user:{"unban" if the_user.role.name == "banned" else "ban"}:{the_user.id}')
     show = InlineKeyboardButton("👤 መግለጫ አሳይ", callback_data=f'user:show:{the_user.id}')
     if user.can(Permission.BAN):
