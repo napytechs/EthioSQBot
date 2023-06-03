@@ -130,7 +130,7 @@ def user_gender_button(user):
 
 def on_user_profile(the_user, user):
     btn = InlineKeyboardMarkup()
-    raise the_user
+   
     if the_user.id != user.id:
         btn.add(InlineKeyboardButton("📝 መልዕክት ላክ", callback_data=f'user:chat:{the_user.id}'))
 
