@@ -1207,7 +1207,7 @@ def en_button(message: types.Message):
         bot.set_state(user_id, 'feedback')
 
     elif text == "📃 Rules":
-        rules = open("rules/enrules.txt")
+        rules = open("rules/amrules.txt")
         bot.send_message(user_id, rules.read())
         rules.close()
 
