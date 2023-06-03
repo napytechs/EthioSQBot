@@ -114,7 +114,7 @@ def __start(message: types.Message):
         return start_message(message)
 
     if user is not None:
-        text = Text(user)
+        text = Text(current_user)
         if user.id == user_id:
             if user.language == 'english':
                 message.text = "👤 Profile"
@@ -123,6 +123,7 @@ def __start(message: types.Message):
                 message.text = "👤 መግለጫ"
                 return am_button(message)
         else:
+            
             bot.send_message(user_id, text.profile, reply_markup=on_user_profile(user, current_user))
 
     elif question is not None:
