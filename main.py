@@ -812,7 +812,7 @@ def show_answers(user_id, question_id, index=0, show_all=False):
             count += 1
             showed = True
             js = answers_json.get(user_id, {})
-            js[answer.answer_id] = msg.message_id
+            js[answer.id] = msg.message_id
             answers_json[user_id] = js
 
         except:
