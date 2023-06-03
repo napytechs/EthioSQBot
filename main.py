@@ -368,7 +368,7 @@ def on_pagination(call: types.CallbackQuery):
     btn = pagination_button(page, users.count())
     text = ''
     left = page % 10
-    count = page * 10 - (10+left)
+    count = page * 10 - (10)
     for user in users.limit(10):
         count += 1
         text += "<i>#%d.</i> %s\n\n" % (count, mention(user))
