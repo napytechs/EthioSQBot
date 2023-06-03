@@ -372,7 +372,7 @@ def on_pagination(call: types.CallbackQuery):
         count += 1
         text += "<i>#%d.</i> %s\n\n" % (count, mention(user))
     text += "\nየታየ - %d ፤ አጠቃላይ - %d" % (count, users.count())
-    bot.edit_message_text(text, inline_message_id=call.inline_message_id, reply_markup=btn)
+    bot.edit_message_text(text, call.message.chat.id, call.message.id, reply_markup=btn)
 
 
 class UserState:
