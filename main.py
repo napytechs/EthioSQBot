@@ -869,7 +869,7 @@ def edit_answer(call: types.CallbackQuery):
     bot.edit_message_reply_markup(user_id, message_id)
     user = session.query(User).filter_by(id=user_id).first()
 
-    if answer.status != 'previewing':
+    if answer.status != 'preview':
         return bot.send_message(user_id, "This answer cannot be edited!")
 
     else:
@@ -924,7 +924,7 @@ def submit_answer(call: types.CallbackQuery):
     user = session.query(User).filter_by(id=user_id).first()
     question = session.query(Question).filter_by(id=answer.question_id).first()
 
-    if answer.status != 'previewing':
+    if answer.status != 'preview':
         bot.edit_message_reply_markup(user_id, message_id)
         return bot.send_message(user_id, "ይህ መልስ ሊላክ አይችልም!")
 
