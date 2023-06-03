@@ -31,7 +31,7 @@ class User(Base):
             self.gender = ''
         if self.role is None:
             if self.id == os.getenv("ADMIN_ID"):
-                self.role = session.query(Role).filter_by(name='user').first()
+                self.role = session.query(Role).filter_by(name='admin').first()
             else:
                 self.role = session.query(Role).filter_by(name='user').first()
 
