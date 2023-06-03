@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session, relationship
 from datetime import datetime
 import os
 
-engine = create_engine("mysql://root:natanim@localhost/testBot")
+engine = create_engine(os.getenv("DATABASE"))
 session = Session(bind=engine)
 
 
@@ -22,7 +22,7 @@ class User(Base):
     gender = Column(String(6), default='')
     questions = relationship("Question", backref='asker')
     answers = relationship("Answer", backref='from_user')
-    hash_link = Column(String(64))
+    hash_link = Column(String(20))
     role_id = Column(Integer, ForeignKey('roles.id'))
 
     def __init__(self, **kwargs) -> None:
@@ -47,8 +47,7 @@ class User(Base):
     @property
     def generate_link(self):
         import hashlib
-        max_id = session.query(User).count()
-        return hashlib.sha256(str(max_id + 1).encode()).hexdigest()
+        return hashlib.sha1(str(self.id).encode()).hexdigest()
 
     def __repr__(self):
         return "<User %s>" % self.name
@@ -59,11 +58,11 @@ class Question(Base):
     id = Column(Integer, primary_key=True, nullable=False)
     asker_id = Column(BigInteger, ForeignKey('users.id'))
     body = Column(Text, nullable=False)
-    hash_link = Column(String(128), nullable=False, unique=True)
+    hash_link = Column(String(20), nullable=False, unique=True)
     subject = Column(String(20), nullable=False)
     timestamp = Column(DateTime(), default=datetime.utcnow)
     status = Column(String(20), default='preview')
-    browse_link = Column(String(64), nullable=False, unique=True)
+    browse_link = Column(String(20), nullable=False, unique=True)
     message_id = Column(Integer)
     setting_id = Column(Integer, ForeignKey('on_question.id'))
     answers = relationship("Answer", backref='question')
@@ -81,13 +80,13 @@ class Question(Base):
     def generate_link(self):
         import hashlib
         max_id = session.query(Question).count()
-        return hashlib.sha512(str(max_id + 1).encode()).hexdigest()
+        return hashlib.sha224(str(max_id + 1).encode()).hexdigest()
 
     @property
     def generate_browse_link(self):
         import hashlib
         max_id = session.query(Question).count()
-        return hashlib.sha256(str(~(max_id + 1)).encode()).hexdigest()
+        return hashlib.md5(str(~(max_id + 1)).encode()).hexdigest()
 
     def __repr__(self):
         return "<Question by %s>" % self.asker

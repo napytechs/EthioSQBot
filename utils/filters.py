@@ -9,8 +9,10 @@ class LanguageFilter(SimpleCustomFilter):
 
     @classmethod
     def check(cls, message):
-        lang = session.query(User.language).filter_by(id=message.chat.id).first()
-        return lang
+        user = session.query(User).filter_by(id=message.chat.id).first()
+        if user is None:
+            return None
+        return user.language
 
 
 class Deeplink(SimpleCustomFilter):
@@ -33,4 +35,4 @@ def parse_time(time_):
 
 
 def smart_subject(subject):
-    return "#" + subject.split("|")[0][2:].strip().replace(" ", "_")
+    return subject.split("|")[0][2:].strip().replace(" ", "_")

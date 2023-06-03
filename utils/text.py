@@ -25,15 +25,15 @@ class Text:
         if self.user.language == 'english':
             return '<b>%s</b>\n<b>Asked questions: </b>%s\n' \
                    '<b>Answered questions</b> %s\n\n<b>%s</b>\n<i>Joined: %s</i>' % (name,
-                                                                                     self.user.questions.count(),
-                                                                                     self.user.answers.count(),
+                                                                                     len(self.user.questions),
+                                                                                     len(self.user.answers),
                                                                                      self.user.bio,
                                                                                      timeago.format(self.user.since_member))
         else:
             return '<b>%s</b>\n<b>የጠየቁት ጥያቄ </b>%s\n' \
                    '<b>የመለሱት ጥያቄ %s</b>\n\n<b>%s</b>\n<i>የተቅላቀሉት %s</i>' % (name,
-                                                                                self.user.questions.count(),
-                                                                                self.user.answers.count(),
+                                                                                len(self.user.questions),
+                                                                                len(self.user.answers),
                                                                                 self.user.bio,
                                                                                 parse_time(self.user.since_member))
 
