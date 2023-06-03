@@ -177,6 +177,12 @@ def update_lang(call: types.CallbackQuery):
         bot.delete_message(user_id, call.message.message_id)
         bot.send_message(user_id, text.welcome, reply_markup=main_button(user))
     else:
+        _code = 'amharic' if code == 'am' else 'english'
+        user.language = _code
+        session.add(user)
+        session.commit()
+        bot.delete_message(user_id, call.message.message_id)
+
         send_menu(user_id)
 
 
