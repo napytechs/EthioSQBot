@@ -61,7 +61,7 @@ class Question(Base):
     hash_link = Column(String(20), nullable=False, unique=True)
     subject = Column(String(20), nullable=False)
     timestamp = Column(DateTime(), default=datetime.utcnow)
-    status = Column(String(20), default='preview')
+    status = Column(String(20), default='previewing')
     browse_link = Column(String(20), nullable=False, unique=True)
     message_id = Column(Integer)
     setting_id = Column(Integer, ForeignKey('on_question.id'))
