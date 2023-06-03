@@ -20,7 +20,7 @@ DEEPLINK = 'http://t.me/{0}?start='.format(bot.get_me().username)
 MAINTAIN = False
 PENDING = False
 CHANNEL_ID = int(os.getenv('CHANNEL_ID'))
-OWNER_ID = int(os.getenv('FLASK_ADMIN_ID'))
+OWNER_ID = int(os.getenv('ADMIN_ID'))
 markups = {}
 WEBHOOK = os.getenv("WEBHOOK")
 
