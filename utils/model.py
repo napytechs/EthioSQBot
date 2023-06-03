@@ -22,7 +22,7 @@ class User(Base):
     gender = Column(String(6), default='')
     questions = relationship("Question", backref='asker')
     answers = relationship("Answer", backref='from_user')
-    hash_link = Column(String(20))
+    hash_link = Column(Text)
     role_id = Column(Integer, ForeignKey('roles.id'))
 
     def __init__(self, **kwargs) -> None:
@@ -58,11 +58,11 @@ class Question(Base):
     id = Column(Integer, primary_key=True, nullable=False)
     asker_id = Column(BigInteger, ForeignKey('users.id'))
     body = Column(Text, nullable=False)
-    hash_link = Column(String(20), nullable=False, unique=True)
-    subject = Column(String(20), nullable=False)
+    hash_link = Column(Text, nullable=False, unique=True)
+    subject = Column(Text, nullable=False)
     timestamp = Column(DateTime(), default=datetime.utcnow)
-    status = Column(String(20), default='previewing')
-    browse_link = Column(String(20), nullable=False, unique=True)
+    status = Column(Text, default='previewing')
+    browse_link = Column(Text, nullable=False, unique=True)
     message_id = Column(Integer)
     setting_id = Column(Integer, ForeignKey('on_question.id'))
     answers = relationship("Answer", backref='question')
@@ -105,11 +105,11 @@ class Answer(Base):
     from_user_id = Column(BigInteger, ForeignKey('users.id'))
     question_id = Column(Integer, ForeignKey('questions.id'))
     body = Column(Text, nullable=False)
-    hash_link = Column(String(128), nullable=False, unique=True)
+    hash_link = Column(Text, nullable=False, unique=True)
     reply = Column(Integer)
     timestamp = Column(DateTime(), default=datetime.utcnow)
     message_id = Column(Integer)
-    status = Column(String(20), default='preview')
+    status = Column(String(20), default='previewing')
 
     def __init__(self, *args, **kwargs):
         super(Answer, self).__init__(**kwargs)
