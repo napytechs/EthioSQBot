@@ -1,4 +1,5 @@
 import os
+from flask import Flask, request
 from telebot import apihelper, TeleBot, types
 import re
 from typing import Union
@@ -13,6 +14,7 @@ from utils.model import User, Role, Answer, Question, Permission, QuestionSettin
 apihelper.ENABLE_MIDDLEWARE = True
 TOKEN = os.getenv("TOKEN")
 bot = TeleBot(TOKEN, parse_mode='html')
+app = Flask(__name__)
 
 DEEPLINK = 'http://t.me/{0}?start='.format(bot.get_me().username)
 MAINTAIN = False
@@ -20,6 +22,7 @@ PENDING = False
 CHANNEL_ID = int(os.getenv('CHANNEL_ID'))
 OWNER_ID = int(os.getenv('FLASK_ADMIN_ID'))
 markups = {}
+WEBHOOK = os.getenv("WEBHOOK")
 
 
 @bot.middleware_handler(update_types=['message'])
@@ -1168,7 +1171,6 @@ def admin_buttons(message: types.Message):
             bot.send_message(user_id, text, reply_markup=btn)
 
 
-
 @bot.message_handler(func=lambda message: message.text in main_text_en, language='english', chat_types=['private'])
 def en_button(message: types.Message):
     user_id = message.chat.id
@@ -1238,6 +1240,21 @@ def am_button(message: types.Message):
         bot.send_message(user_id, "<b>✔ የቦቱን መስራች ያግኙ\n\n👨‍💻 @Natiprado</b>")
 
 
+@app.route("/")
+def index():
+    bot.set_webhook(WEBHOOK+'/'+TOKEN)
+    return "Added webhook <b>%s</b>" % WEBHOOK
+
+
+@app.route('/' + TOKEN, methods=['POST'])
+def webhook():
+    json_string = request.get_data().decode('utf-8')
+    update = types.Update.de_json(json_string)
+    bot.process_new_updates([update])
+
+    return "One update processed"
+
+
 bot.add_custom_filter(LanguageFilter())
 bot.add_custom_filter(Deeplink())
 bot.add_custom_filter(StateFilter(bot))
@@ -1246,6 +1263,6 @@ bot.add_custom_filter(ChatFilter())
 
 if __name__ == "__main__":
     print("Bot started polling")
-    bot.infinity_polling()
+    app.run()
 
 
