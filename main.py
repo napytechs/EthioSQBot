@@ -962,14 +962,14 @@ def submit_answer(call: types.CallbackQuery):
         if user_id == to_user:
             return
         try:
-            if to_user == question.asker and not answer.reply_to:
+            if to_user == question.asker_id and not answer.reply:
                 url = f't.me/{bot.get_chat(CHANNEL_ID).username}/{question.message_id}'
                 bot.send_message(to_user, f"{mention(user)} <a href='{url}'>ለጥያቄዎ</a> ምልስ ሰጥቷል።",
                                  disable_web_page_preview=True)
             bot.send_message(to_user, text.strip(), reply_markup=btn, reply_to_message_id=reply_msg_id)
 
         except:
-            raise
+            pass
 
         session.add(answer)
         session.commit()
@@ -977,7 +977,7 @@ def submit_answer(call: types.CallbackQuery):
         btns.add(
             InlineKeyboardButton("ምላሽ", url=DEEPLINK + question.hash_link),
             InlineKeyboardButton("ዝርዝር (%d)" % len(question.answers), url=DEEPLINK + question.browse_link),
-            InlineKeyboardButton("⚠️ ይጠቁሙ ", callback_data=DEEPLINK + "-report:" + question.id)
+            InlineKeyboardButton("⚠️ ይጠቁሙ ", callback_data='-report:%d' % question.id)
         )
         bot.edit_message_reply_markup(CHANNEL_ID, question.message_id, reply_markup=btns)
 
