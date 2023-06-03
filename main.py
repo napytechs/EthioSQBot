@@ -949,7 +949,7 @@ def submit_answer(call: types.CallbackQuery):
         btn = InlineKeyboardMarkup()
         ls = []
 
-        if question.setting.reply or user_id == question.asker:
+        if question.setting.reply or user_id == question.asker_id or to_user == question.asker_id:
             ls.append(InlineKeyboardButton("↪ Reply", callback_data=f'reply_answer:{answer.id}'))
         ls.append(InlineKeyboardButton("⚠ ይጠቁሙ", callback_data=f'report_answer:{answer.id}'))
         btn.add(*ls)
