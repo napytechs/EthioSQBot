@@ -134,8 +134,8 @@ def on_user_profile(the_user, user):
     if the_user.id != user.id:
         btn.add(InlineKeyboardButton("📝 መልዕክት ላክ", callback_data=f'user:chat:{the_user.id}'))
 
-    if the_user.role.name == "admin":
-        return btn
+    #if the_user.role.name == "admin":
+    #   return btn
 
     ban = InlineKeyboardButton("✅ አታግድ" if the_user.role.name == 'banned' else "🚷 አግድ",
                                callback_data=f'user:{"unban" if the_user.role.name == "banned" else "ban"}:{the_user.id}')
