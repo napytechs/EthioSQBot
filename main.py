@@ -965,7 +965,7 @@ def submit_answer(call: types.CallbackQuery):
         btns.add(
             InlineKeyboardButton("ምላሽ", url=DEEPLINK + question.hash_link),
             InlineKeyboardButton("ዝርዝር (%d)" % len(question.answers), url=DEEPLINK + question.browse_link),
-            InlineKeyboardButton("⚠️ ይጠቁሙ ", url=DEEPLINK + "-report:" + question.hash_link)
+            InlineKeyboardButton("⚠️ ይጠቁሙ ", callback_data=DEEPLINK + "-report:" + question.id)
         )
         bot.edit_message_reply_markup(CHANNEL_ID, question.message_id, reply_markup=btns)
 
