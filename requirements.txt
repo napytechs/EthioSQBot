@@ -2,3 +2,5 @@ psycopg2
 pytelegrambotapi
 timeago
 mysqlclient
+flask
+sqlalchemy
