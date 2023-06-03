@@ -1014,7 +1014,7 @@ def get_user(call: types.CallbackQuery):
     current_user = session.query(User).filter_by(id=user_id).first()
     content, usr_id = call.data.split(':')[1:]
     msg_id = call.message.message_id
-    user = session.query(User).filter_by(id=usr_id)
+    user = session.query(User).filter_by(id=usr_id).first()
 
     if content == "chat":
         bot.answer_callback_query(call.id)
