@@ -882,7 +882,7 @@ def edit_answer(call: types.CallbackQuery):
 
 
 @bot.message_handler(state='edit_answer', content_types=util.content_type_media)
-def edit_answer(message: types.Message):
+def __edit_answer(message: types.Message):
     user_id = message.chat.id
     user = session.query(User).filter_by(id=user_id).first()
 
@@ -931,8 +931,8 @@ def submit_answer(call: types.CallbackQuery):
     else:
         bot.answer_callback_query(call.id, "ምላሾ ተልኳል!")
         bot.delete_message(user_id, message_id)
-        to_user = question.asker.id if not answer.reply else session.query(Answer.from_user_id).filter_by(reply=answer.reply).first()[0]
-        reply_msg_id = None if not answer.reply else session.query(Answer.message_id).filter_by(reply=answer.reply).first()
+        to_user = question.asker.id if not answer.reply else session.query(Answer.from_user_id).filter_by(id=answer.reply).first()[0]
+        reply_msg_id = None if not answer.reply else session.query(Answer.message_id).filter_by(id=answer.reply).first()[0]
         asker = "#ጠያቂ" if answer.from_user_id == question.asker.id else ""
         btn = InlineKeyboardMarkup()
         ls = []
