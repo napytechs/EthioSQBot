@@ -142,7 +142,8 @@ def __start(message: types.Message):
         text = f"#{answer.subject}\n\n<b>{answer.body}</b>\n\nበ {mention(answer.asker)} የተጠየቀ"
         bot.send_message(user_id, text, reply_markup=btn)
         text = Text(current_user)
-        bot.send_message(user_id, text.answer, reply_markup=cancel(current_user))
+        bot.send_message(user_id, text.answer, reply_markup=cancel(current_user) if answer.status != 'closed' else None)
+        if answer.status == 'closed': return
         bot.set_state(user_id, "get_answer")
         with bot.retrieve_data(user_id) as data:
             data['question_id'] = answer.id
