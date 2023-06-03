@@ -133,16 +133,15 @@ def on_user_profile(the_user, user):
    
     if the_user.id != user.id:
         btn.add(InlineKeyboardButton("📝 መልዕክት ላክ", callback_data=f'user:chat:{the_user.id}'))
-    raise the_user
+    
     if the_user.role.name == "admin":
        return btn
 
     ban = InlineKeyboardButton("✅ አታግድ" if the_user.role.name == 'banned' else "🚷 አግድ",
                                callback_data=f'user:{"unban" if the_user.role.name == "banned" else "ban"}:{the_user.id}')
     show = InlineKeyboardButton("👤 መግለጫ አሳይ", callback_data=f'user:show:{the_user.id}')
-    if user.can(Permission.BAN):
+    if user.role.name == "admin":
         btn.add(ban)
-    if user.can(Permission.MANAGE):
         btn.add(show, InlineKeyboardButton("🛂 እንደ አስተዳዳሪ ምልዕክት ላክ", callback_data=f'user:send:{the_user.id}'))
     return btn
 
