@@ -11,14 +11,14 @@ from button.keyboard import *
 from utils.model import User, Role, Answer, Question, Permission, QuestionSetting, session
 
 apihelper.ENABLE_MIDDLEWARE = True
-TOKEN = "6217820004:AAE-moDqiTnNozh_GqT7Z4_747CGapmFRJA"
+TOKEN = os.getenv("TOKEN")
 bot = TeleBot(TOKEN, parse_mode='html')
 
 DEEPLINK = 'http://t.me/{0}?start='.format(bot.get_me().username)
 MAINTAIN = False
 PENDING = False
-CHANNEL_ID = -1001508262922#int(os.getenv('CHANNEL_ID'))
-OWNER_ID = 5213764043 #int(os.getenv('FLASK_ADMIN_ID'))
+CHANNEL_ID = int(os.getenv('CHANNEL_ID'))
+OWNER_ID = int(os.getenv('FLASK_ADMIN_ID'))
 markups = {}
 
 
