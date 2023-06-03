@@ -44,10 +44,10 @@ subject_text = ["🇪🇹 አማርኛ", "🇪🇹 አፋን ኦሮሞ", "🇬�
                 "🌏 ታሪክ", "🧭 ጂኦግራፊ", "⚖ ስነዜጋ|Civics", "💶 ስነብዕል|Economics", '💰 ቢዝነስ', '👥 ህብረተስብ|Social', "🧠 ጠቅላላ እውቀት"]
 
 
-def subject_button():
+def subject_button(user):
     btn = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     btn.add(*subject_text)
-    btn.add(KeyboardButton("❌ Cancel"))
+    btn.add(KeyboardButton("❌ Cancel" if user.language == 'english' else "❌ ሰርዝ"))
     return btn
 
 
