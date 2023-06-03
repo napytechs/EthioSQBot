@@ -790,7 +790,7 @@ def show_answers(user_id, question_id, index=0, show_all=False):
     for answer in question.answers[index:]:
         try:
             if answer.status != 'posted':
-                continue
+                bot.send_message(user_id, "******** እየተገመገመ ያለ መልስ ******")
             if not show_all and count == 10:
                 break
 
