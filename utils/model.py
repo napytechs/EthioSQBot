@@ -171,11 +171,13 @@ class Answer(Base):
     @property
     def from_user(self):
         return session.query(User).filter_by(id=self.from_user_id).first()
+    
+    @property
+    def question(self):
+        return session.query(Question).filter_by(id=self.question_id).first()
 
     def get_dict(self):
         new_dict = self.__dict__
-        new_dict.pop("from_user")
-        new_dict.pop("question")
         new_dict.pop("hash_link")
         return new_dict
 
@@ -308,8 +310,6 @@ class User(Base):
     def get_dict(self):
         new_dict = self.__dict__
         new_dict.pop("hash_link")
-        new_dict.pop("questions")
-        new_dict.pop("answers")
         new_dict.pop("role")
         return new_dict
 
