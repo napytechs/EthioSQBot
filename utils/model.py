@@ -36,6 +36,9 @@ class Query:
         return len([*self.__result])
 
     def insert(self, **kwargs):
+        try: del kwargs['hash_link']
+        except: pass
+        
         exist = self.__coll.find_one({"_id": self.__clas.hash_link})
 
         if exist:
@@ -138,7 +141,6 @@ class Role(Base):
             session.add(role)
 
     def get_dict(self):
-        self.__dict__.pop("hash_link")
         return self.__dict__
 
 
