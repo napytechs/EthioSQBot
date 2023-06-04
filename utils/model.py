@@ -259,12 +259,7 @@ class Question(Base):
         return session.query(BrowseAnswerLink).filter_by(question_id=self.id).first()
 
     def get_dict(self):
-        new_dict = {}
-        for k, v in self.__dict__.items():
-            if k in ['hash_link']:
-                continue
-            new_dict[k] = v
-
+        new_dict = self.__dict__
         new_dict['setting'] = self.setting.get_dict()
         return new_dict
 
@@ -309,7 +304,6 @@ class User(Base):
     
     def get_dict(self):
         new_dict = self.__dict__
-        new_dict.pop("hash_link")
         new_dict.pop("role")
         return new_dict
 
