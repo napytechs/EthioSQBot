@@ -138,6 +138,7 @@ class Role(Base):
             session.add(role)
 
     def get_dict(self):
+        self.__dict__.pop("hash_link")
         return self.__dict__
 
 
