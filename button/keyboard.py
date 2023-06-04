@@ -108,6 +108,7 @@ def user_button(user):
         "Edit bio" if user.language == 'english' else "አርትዕ ስለራስ": {'callback_data': 'edit_user:bio'},
         "Edit gender" if user.language == 'english' else "አርትዕ ጾታ": {'callback_data': 'edit_user:gender'}
     }
+
     return util.quick_markup(edit)
 
 
@@ -119,12 +120,14 @@ def user_gender_button(user):
     else:
         male = "ወንድ" if user.gender != "👨" else "✅ ወንድ"
         female = "ሴት" if user.gender != "👩" else "✅ ሴት"
-        undefined = "ያልተገለጸ" if user.gender is not None else "✅ ያልተገለጸ"
+        undefined = "ያልተገለጸ" if user.gender == '' else "✅ ያልተገለጸ"
     gender = {
         male: {'callback_data': 'gender:👨'},
         female: {'callback_data': 'gender:👩'},
-        undefined: {'callback_data': 'gender:undefined'}
+        undefined: {'callback_data': 'gender:undefined'},
+        "🔙 Back" if user.language == 'english' else "🔙 ተመለስ": {'callback_data': 'gender:back'}
     }
+
     return util.quick_markup(gender)
 
 
