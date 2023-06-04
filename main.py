@@ -1270,6 +1270,6 @@ bot.add_custom_filter(ChatFilter())
 
 if __name__ == "__main__":
     print("Bot started polling")
-    app.run(host='0.0.0.0', port=int(os.getenv("PORT", 5555)))
-
+    #app.run(host='0.0.0.0', port=int(os.getenv("PORT", 5555)))
+    bot.infinity_polling()
 
