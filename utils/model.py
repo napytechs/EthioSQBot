@@ -3,15 +3,18 @@ from datetime import datetime
 
 import pymongo
 
-_session = pymongo.MongoClient(os.getenv("DATABASE", "mongodb://localhost:27017"))['EthioSQBot']
-
-class Base:
-    pass
+db = pymongo.MongoClient(os.getenv("DATABASE"))['EthioSQBot']
 
 
 class Query:
     __result = {}
     __args = {}
+    __clas = None
+
+    def __init__(self, clas):
+        self.__coll = db[clas.__document__]
+        self.__clas = clas
+        self.__result = self.__coll.find()
 
     def filter_by(self, **kwargs):
         self.__result = self.__coll.find(kwargs)
@@ -21,10 +24,10 @@ class Query:
         self.__result = self.__result.limit(num)
         return self
 
-    def all(self):
+    def all(self) -> ['__clas']:
         return [self.__clas.de_json(res) for res in self.__result]
 
-    def first(self):
+    def first(self) -> '__clas':
         try:
             result = self.__result.limit(1).next()
         except:
@@ -32,13 +35,14 @@ class Query:
 
         return self.__clas.de_json(result)
 
-    def count(self):
+    def count(self) -> int:
         return len([*self.__result])
 
-    def insert(self, **kwargs):
-        try: del kwargs['hash_link']
-        except: pass
-        
+    def insert_or_update(self, **kwargs):
+        try:
+            del kwargs['hash_link']
+        except KeyError:
+            pass
         exist = self.__coll.find_one({"_id": self.__clas.hash_link})
 
         if exist:
@@ -52,15 +56,16 @@ class Query:
     def drop(self):
         self.__coll.drop()
 
-    def __init__(self, clas):
-        self.__coll = _session[clas.__document__]
-        self.__clas = clas
-        self.__result = self.__coll.find()
+    def delete(self):
+        return self.__coll.delete_one({"_id": self.__clas.hash_link})
 
 
 class Session:
     def add(self, cls):
-        return self.query(cls).insert(**cls.get_dict())
+        return self.query(cls).insert_or_update(**cls.get_dict())
+
+    def delete(self, cls):
+        return self.query(cls).delete()
 
     def __init__(self):
         self.query = Query
@@ -80,7 +85,7 @@ class Permission:
     ADMIN = 256
 
 
-class Role(Base):
+class Role:
     __document__ = 'roles'
 
     @classmethod
@@ -144,7 +149,7 @@ class Role(Base):
         return self.__dict__
 
 
-class Answer(Base):
+class Answer:
     __document__ = 'answers'
 
     @classmethod
@@ -169,16 +174,16 @@ class Answer(Base):
         self.status = status
 
     @property
-    def from_user(self):
+    def from_user(self) -> "User":
         return session.query(User).filter_by(id=self.from_user_id).first()
-    
+
     @property
-    def question(self):
-        return session.query(Question).filter_by(id=self.question_id).first()
+    def question(self) -> "Question":
+        return session.query(User).filter_by(id=self.from_user_id).first()
 
     def get_dict(self):
         new_dict = self.__dict__
-        new_dict.pop("hash_link")
+        new_dict.pop("question")
         return new_dict
 
 
@@ -199,7 +204,7 @@ class QuestionSetting:
         return self.__dict__
 
 
-class BrowseAnswerLink(Base):
+class BrowseAnswerLink:
     __document__ = 'b_a_links'
 
     @classmethod
@@ -214,14 +219,14 @@ class BrowseAnswerLink(Base):
         self.question_id = question_id
 
     @property
-    def question(self):
+    def question(self) -> "Question":
         return session.query(Question).filter_by(id=self.question_id).first()
 
     def get_dict(self):
-        return {"question_id": self.question_id}
+        return self.__dict__
 
 
-class Question(Base):
+class Question:
     __document__ = 'questions'
 
     @classmethod
@@ -247,19 +252,24 @@ class Question(Base):
         self.setting = setting
 
     @property
-    def asker(self):
+    def asker(self) -> "User":
         return session.query(User).filter_by(id=self.asker_id).first()
 
     @property
-    def answers(self):
+    def answers(self) -> [Answer]:
         return session.query(Answer).filter_by(question_id=self.id).all()
 
     @property
-    def browse_link(self):
-        return session.query(BrowseAnswerLink).filter_by(question_id=self.id).first()
+    def browse_link(self) -> str:
+        return session.query(BrowseAnswerLink).filter_by(question_id=self.id).first().hash_link
 
     def get_dict(self):
-        new_dict = self.__dict__
+        new_dict = {}
+        for k, v in self.__dict__.items():
+            if k in ['hash_link']:
+                continue
+            new_dict[k] = v
+
         new_dict['setting'] = self.setting.get_dict()
         return new_dict
 
@@ -267,7 +277,7 @@ class Question(Base):
         return "<Question %d>" % self.id
 
 
-class User(Base):
+class User:
     __document__ = "users"
 
     @classmethod
@@ -286,27 +296,35 @@ class User(Base):
         self.bio = bio
         self.gender = gender
         self.hash_link = _id
-        self.role = session.query(Role).filter_by(id=role_id).first()
-        
+        if role_id is None:
+            if self.id == os.getenv("ADMIN_ID"):
+                self.role_id = session.query(Role).filter_by(name='admin').first().id()
+            else:
+                self.role_id = session.query(Role).filter_by(name='user').first().id()
+        else:
+            self.role_id = role_id
+
     @property
-    def questions(self):
+    def role(self) -> Role:
+        return session.query(Role).filter_by(id=self.role_id).first()
+
+    @property
+    def questions(self) -> [Question]:
         return session.query(Question).filter_by(asker_id=self.id).all()
 
     @property
-    def answers(self):
+    def answers(self) -> [Answer]:
         return session.query(Answer).filter_by(from_user_id=self.id).all()
 
-    def can(self, perm):
+    def can(self, perm) -> bool:
         return self.role is not None and self.role.has_permission(perm)
 
-    def is_admin(self):
+    def is_admin(self) -> bool:
         return self.can(Permission.ADMIN)
     
     def get_dict(self):
         new_dict = self.__dict__
-        new_dict.pop("role")
         return new_dict
 
     def __repr__(self):
         return "<User %s>" % self.name
-
