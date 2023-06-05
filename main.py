@@ -30,7 +30,7 @@ WEBHOOK = os.getenv("WEBHOOK")
 
 
 @bot.middleware_handler(update_types=['message'])
-def get_updates(bot_instance, update: Union[types.Update, types.Message]):
+def get_message_updates(bot_instance, update: Union[types.Update, types.Message]):
     user_id = update.from_user.id
 
     if update.chat.type == 'private':
@@ -41,6 +41,16 @@ def get_updates(bot_instance, update: Union[types.Update, types.Message]):
             update.content_type = 'maintain'
         elif user is not None and not check_join(user_id) and user.language is not None:
             update.content_type = 'not_join'
+
+
+@bot.middleware_handler(update_types=['callback_query'])
+def get_call_back_updates(bot_instance, update: Union[types.Update, types.CallbackQuery]):
+    user_id = update.from_user.id
+    message = update.message
+    user = session.query(User).filter_by(id=user_id).first()
+    if update.data.startswith("-report") and user is None:
+        bot.answer_callback_query(update.id, "እባኮን፤ በቅድሚያ ቦቱን ያስጀምሩ!!")
+    return get_message_updates(bot_instance, message)
 
 
 def check_join(user_id: int):
@@ -1270,6 +1280,7 @@ bot.add_custom_filter(ChatFilter())
 
 if __name__ == "__main__":
     print("Bot started polling")
-    #app.run(host='0.0.0.0', port=int(os.getenv("PORT", 5555)))
     bot.infinity_polling()
+    #app.run(host='0.0.0.0', port=int(os.getenv("PORT", 5555)))
+
 
