@@ -32,9 +32,10 @@ WEBHOOK = os.getenv("WEBHOOK")
 @bot.middleware_handler(update_types=['message'])
 def get_message_updates(bot_instance, update: Union[types.Update, types.Message]):
     user_id = update.from_user.id
-
+    print("User ID", user_id)
     if update.chat.type == 'private':
         user = session.query(User).filter_by(id=user_id).first()
+        print(user)
         if user is not None and user.role.permission == 0:
             update.content_type = 'banned'
         elif MAINTAIN:
