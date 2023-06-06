@@ -13,7 +13,7 @@ from utils.model import User, Role, Answer, Question, Permission, session, Brows
 import logging
 
 logger = logging.getLogger("TeleBot")
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 apihelper.ENABLE_MIDDLEWARE = True
 TOKEN = os.getenv("TOKEN")
@@ -1281,7 +1281,8 @@ bot.add_custom_filter(ChatFilter())
 
 if __name__ == "__main__":
     print("Bot started polling")
-    #bot.infinity_polling()
-    app.run(host='0.0.0.0', port=int(os.getenv("PORT", 5555)))
+    bot.delete_webhook()
+    bot.infinity_polling()
+    #app.run(host='0.0.0.0', port=int(os.getenv("PORT", 5555)))
 
 
