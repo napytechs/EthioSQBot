@@ -1282,7 +1282,7 @@ bot.add_custom_filter(ChatFilter())
 
 if __name__ == "__main__":
     print("Bot started polling")
-    bot.delete_webhook()
+    #bot.delete_webhook()
     bot.infinity_polling()
     #app.run(host='0.0.0.0', port=int(os.getenv("PORT", 5555)))
 
