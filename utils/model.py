@@ -297,10 +297,10 @@ class User:
         self.gender = gender
         self.hash_link = _id
         if role_id is None:
-            if self.id == os.getenv("ADMIN_ID"):
-                self.role_id = session.query(Role).filter_by(name='admin').first().id()
+            if self.id == int(os.getenv("ADMIN_ID")):
+                self.role_id = 3#session.query(Role).filter_by(name='admin').first().id
             else:
-                self.role_id = session.query(Role).filter_by(name='user').first().id()
+                self.role_id = 2#session.query(Role).filter_by(name='user').first().id
         else:
             self.role_id = role_id
 
