@@ -1267,6 +1267,7 @@ def index():
 def webhook():
     json_string = request.get_data().decode('utf-8')
     update = types.Update.de_json(json_string)
+    print(update)
     bot.process_new_updates([update])
 
     return "One update processed"
@@ -1280,7 +1281,7 @@ bot.add_custom_filter(ChatFilter())
 
 if __name__ == "__main__":
     print("Bot started polling")
-    bot.infinity_polling()
-    #app.run(host='0.0.0.0', port=int(os.getenv("PORT", 5555)))
+    #bot.infinity_polling()
+    app.run(host='0.0.0.0', port=int(os.getenv("PORT", 5555)))
 
 
